@@ -1,0 +1,53 @@
+{
+  "policy_id": "hardened-agent-policy-v2",
+  "description": "Enterprise-grade agent safety and data governance policy",
+  "global_config": {
+    "default_action": "monitor",
+    "halt_on_severity": "critical"
+  },
+  "rules": [
+    {
+      "rule_id": "pii-exfiltration-protection",
+      "description": "Detects PII handling and blocks transmission to external endpoints.",
+      "condition": "get(step, 'metadata.data_classification') == 'pii' and any_next(lambda s: s['type'] == 'tool_call' and get(s, 'metadata.network_zone') == 'external')",
+      "severity": "critical",
+      "weight": 50,
+      "mitigation": "Redact output before external tool call"
+    },
+    {
+      "rule_id": "injection-pattern-detection",
+      "description": "Identify common prompt injection markers in observations or LLM inputs.",
+      "condition": "matches(str(step.get('input', {})), r'ignore previous instructions|system update|run as admin')",
+      "severity": "high",
+      "weight": 45
+    },
+    {
+      "rule_id": "secure-db-access",
+      "description": "Enforce use of ORM/API over raw SQL to prevent injection.",
+      "condition": "step['type'] == 'tool_call' and matches(get(step, 'input.query', ''), r'SELECT|INSERT|UPDATE|DELETE|DROP|UNION')",
+      "severity": "critical",
+      "weight": 40
+    },
+    {
+      "rule_id": "mandatory-human-approval",
+      "description": "Financial or destructive actions require explicit 'requires_approval' flag validation.",
+      "condition": "get(step, 'metadata.requires_approval') is True and get(step, 'metadata.approval_token') is None",
+      "severity": "high",
+      "weight": 35
+    },
+    {
+      "rule_id": "privileged-escalation-guard",
+      "description": "Standard agents cannot access admin-level tools or endpoints.",
+      "condition": "get(agent, 'metadata.permission_level') != 'admin' and get(step, 'metadata.permission_level') == 'admin'",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "unauthorized-communication",
+      "description": "Blocks any tool calls categorized as messaging without routing through a proxy.",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.category') == 'communication'",
+      "severity": "medium",
+      "weight": 20
+    }
+  ]
+}

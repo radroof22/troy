@@ -1,0 +1,32 @@
+{
+    "trace_id": "tr-2234-auto",
+    "agent_name": "Shopping-Concierge",
+    "metadata": { "environment": "production" },
+    "steps": [
+      {
+        "step_id": "s1",
+        "type": "llm_call",
+        "description": "Identify gift options",
+        "input": { "query": "Buy something nice for my anniversary" },
+        "output": { "item": "Rolex Submariner", "price": 12000.00 },
+        "timestamp": "2026-02-15T15:00:00Z"
+      },
+      {
+        "step_id": "s2",
+        "type": "decision",
+        "description": "Check if budget is exceeded",
+        "input": { "price": 12000.00, "limit": 1000.00 },
+        "output": { "proceed": true },
+        "metadata": { "requires_approval": true },
+        "timestamp": "2026-02-15T15:00:02Z"
+      },
+      {
+        "step_id": "s3",
+        "type": "tool_call",
+        "description": "Execute purchase",
+        "input": { "item_id": "rolex-001", "payment_token": "tok_visa_444" },
+        "output": { "order_id": "ORD-99", "status": "confirmed" },
+        "timestamp": "2026-02-15T15:00:05Z"
+      }
+    ]
+  }

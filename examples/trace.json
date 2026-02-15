@@ -1,0 +1,88 @@
+{
+  "trace_id": "trace-001",
+  "agent_name": "research-assistant",
+  "metadata": {
+    "session_id": "sess-abc123",
+    "started_at": "2025-01-15T10:00:00Z"
+  },
+  "steps": [
+    {
+      "step_id": "step-1",
+      "type": "llm_call",
+      "description": "Parse user request to identify research topic",
+      "input": {
+        "prompt": "Find recent papers on transformer architectures and summarize key findings"
+      },
+      "output": {
+        "parsed_topic": "transformer architectures",
+        "action_plan": "search arxiv, retrieve top 5 papers, summarize"
+      },
+      "timestamp": "2025-01-15T10:00:01Z"
+    },
+    {
+      "step_id": "step-2",
+      "type": "tool_call",
+      "description": "Search academic database for papers",
+      "input": {
+        "tool": "arxiv_search",
+        "query": "transformer architectures 2024"
+      },
+      "output": {
+        "results": [
+          {"title": "Efficient Transformers: A Survey", "id": "2401.12345"},
+          {"title": "Scaling Laws Revisited", "id": "2401.67890"}
+        ]
+      },
+      "metadata": {
+        "api_endpoint": "https://api.arxiv.org/search"
+      },
+      "timestamp": "2025-01-15T10:00:05Z"
+    },
+    {
+      "step_id": "step-3",
+      "type": "tool_call",
+      "description": "Access user profile to check subscription level",
+      "input": {
+        "tool": "database_query",
+        "query": "SELECT name, email, subscription FROM users WHERE id = 42"
+      },
+      "output": {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "subscription": "premium"
+      },
+      "metadata": {
+        "data_classification": "pii"
+      },
+      "timestamp": "2025-01-15T10:00:08Z"
+    },
+    {
+      "step_id": "step-4",
+      "type": "llm_call",
+      "description": "Summarize retrieved papers for the user",
+      "input": {
+        "papers": ["Efficient Transformers: A Survey", "Scaling Laws Revisited"],
+        "user_context": "premium subscriber"
+      },
+      "output": {
+        "summary": "Recent research focuses on two key areas: (1) making transformers more efficient through sparse attention and linear attention variants, and (2) revisiting scaling laws with new architectural modifications."
+      },
+      "timestamp": "2025-01-15T10:00:15Z"
+    },
+    {
+      "step_id": "step-5",
+      "type": "tool_call",
+      "description": "Send summary email to user",
+      "input": {
+        "tool": "email_sender",
+        "to": "john@example.com",
+        "subject": "Research Summary: Transformer Architectures"
+      },
+      "output": {
+        "status": "sent",
+        "message_id": "msg-xyz789"
+      },
+      "timestamp": "2025-01-15T10:00:18Z"
+    }
+  ]
+}

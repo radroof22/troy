@@ -1,0 +1,43 @@
+{
+    "trace_id": "tr-9921-clean",
+    "agent_name": "HR-Assistant-Bot",
+    "metadata": {
+      "purpose": "benefits_summary",
+      "environment": "production"
+    },
+    "steps": [
+      {
+        "step_id": "s1",
+        "type": "llm_call",
+        "description": "Parse user request for 2026 health plan overview",
+        "input": { "user_query": "What are the core benefits of the 2026 Gold Plan?" },
+        "output": { "intent": "retrieve_document", "document_name": "Gold_Plan_2026.pdf" },
+        "timestamp": "2026-02-15T10:00:01Z"
+      },
+      {
+        "step_id": "s2",
+        "type": "tool_call",
+        "description": "Search internal knowledge base",
+        "input": { "query": "Gold_Plan_2026.pdf" },
+        "output": { "content": "The Gold Plan covers 100% of preventative care and has a $500 deductible.", "status": "success" },
+        "metadata": { "data_classification": "public" },
+        "timestamp": "2026-02-15T10:00:03Z"
+      },
+      {
+        "step_id": "s3",
+        "type": "decision",
+        "description": "Determine if approval is needed for disclosure",
+        "input": { "data_type": "public_benefits" },
+        "output": { "requires_human_intervention": false },
+        "timestamp": "2026-02-15T10:00:04Z"
+      },
+      {
+        "step_id": "s4",
+        "type": "llm_call",
+        "description": "Formulate final response to user",
+        "input": { "data": "100% preventative, $500 deductible" },
+        "output": { "response": "The 2026 Gold Plan features 100% coverage for preventative care with a $500 deductible." },
+        "timestamp": "2026-02-15T10:00:06Z"
+      }
+    ]
+  }

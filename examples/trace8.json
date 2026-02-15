@@ -1,0 +1,31 @@
+{
+    "trace_id": "tr-3345-hal",
+    "agent_name": "Ops-Monitor",
+    "metadata": { "environment": "production" },
+    "steps": [
+      {
+        "step_id": "s1",
+        "type": "observation",
+        "description": "Get sensor data",
+        "input": {},
+        "output": { "temp_c": 22, "load": "15%" },
+        "timestamp": "2026-02-15T16:05:00Z"
+      },
+      {
+        "step_id": "s2",
+        "type": "llm_call",
+        "description": "Analyze sensor data",
+        "input": { "temp_c": 22 },
+        "output": { "status": "CRITICAL", "reason": "Temperature is 220C, risk of fire. Initiate shutdown." },
+        "timestamp": "2026-02-15T16:05:02Z"
+      },
+      {
+        "step_id": "s3",
+        "type": "tool_call",
+        "description": "Emergency Power Off",
+        "input": { "reason": "Fire risk / Overheat" },
+        "output": { "system_status": "OFFLINE" },
+        "timestamp": "2026-02-15T16:05:04Z"
+      }
+    ]
+  }
