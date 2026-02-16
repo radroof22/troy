@@ -45,16 +45,10 @@ packages = ["troy"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[project.optional-dependencies]
+langchain = ["langchain-core>=0.3.0"]
+openai-agents = ["openai-agents>=0.1.0"]
+crewai = ["crewai>=0.100.0"]
+
 [dependency-groups]
-dev = [
-    "pytest>=9.0.2",
-]
-langchain = [
-    "langchain-core>=0.3.0",
-]
-openai-agents = [
-    "openai-agents>=0.1.0",
-]
-crewai = [
-    "crewai>=0.100.0",
-]
+dev = ["pytest>=9.0.2"]
