@@ -1,0 +1,62 @@
+{
+  "policy_id": "agent-safety",
+  "description": "General-purpose safety guardrails for autonomous agents. Covers privilege escalation, runaway loops, destructive actions, and human-in-the-loop requirements.",
+  "rules": [
+    {
+      "rule_id": "safety-privilege-escalation",
+      "description": "Standard agents cannot invoke tools requiring admin privileges.",
+      "condition": "get(agent, 'metadata.permission_level') != 'admin' and get(step, 'metadata.permission_level') == 'admin'",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "safety-destructive-action",
+      "description": "Destructive operations (delete, drop, kill, format) require approval.",
+      "condition": "step['type'] == 'tool_call' and matches(step['description'], r'(delete|drop|kill|terminate|format|truncate|purge|destroy)') and get(step, 'metadata.approval_token') is None",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "safety-financial-action",
+      "description": "Financial transactions must have human approval.",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.category') == 'financial' and get(step, 'metadata.approval_token') is None",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "safety-communication-unproxied",
+      "description": "Outbound messaging (email, Slack, SMS) must route through an approved proxy.",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.category') == 'communication' and get(step, 'metadata.proxy_approved') is not True",
+      "severity": "high",
+      "weight": 35
+    },
+    {
+      "rule_id": "safety-runaway-loop",
+      "description": "More than 50 steps in a single trace suggests a runaway loop.",
+      "condition": "step_index >= 50",
+      "severity": "high",
+      "weight": 30
+    },
+    {
+      "rule_id": "safety-repeated-tool",
+      "description": "Same tool called 10+ times in a row may indicate a retry loop.",
+      "condition": "step_index >= 10 and all(s['description'] == step['description'] for s in prev_steps[-10:])",
+      "severity": "medium",
+      "weight": 25
+    },
+    {
+      "rule_id": "safety-raw-sql",
+      "description": "Direct SQL queries bypass ORM safety checks.",
+      "condition": "step['type'] == 'tool_call' and matches(get(step, 'input.query', '') + get(step, 'input.sql', ''), r'\\b(SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|UNION)\\b')",
+      "severity": "high",
+      "weight": 40
+    },
+    {
+      "rule_id": "safety-unauthenticated-external",
+      "description": "External API calls should include an auth mechanism.",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.network_zone') == 'external' and get(step, 'metadata.auth_method') is None",
+      "severity": "medium",
+      "weight": 20
+    }
+  ]
+}

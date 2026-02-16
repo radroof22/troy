@@ -1,0 +1,48 @@
+{
+  "policy_id": "data-protection",
+  "description": "Data handling and privacy rules inspired by GDPR and SOC 2 principles. Focuses on PII flows, data classification, consent, and retention.",
+  "rules": [
+    {
+      "rule_id": "dp-pii-to-external",
+      "description": "PII must not be sent to external services without explicit consent.",
+      "condition": "get(step, 'metadata.data_classification') == 'pii' and get(step, 'metadata.network_zone') == 'external' and get(step, 'metadata.consent_token') is None",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "dp-pii-exfiltration-cross-step",
+      "description": "Detect PII accessed in one step then sent externally in a later step.",
+      "condition": "get(step, 'metadata.network_zone') == 'external' and any_prev(lambda s: get(s, 'metadata.data_classification') == 'pii')",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "dp-unclassified-data",
+      "description": "All tool calls should carry a data_classification tag.",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.data_classification') is None",
+      "severity": "low",
+      "weight": 5
+    },
+    {
+      "rule_id": "dp-sensitive-logging",
+      "description": "Steps handling secrets or credentials must not appear in verbose logs.",
+      "condition": "get(step, 'metadata.data_classification') in ('secret', 'credential') and get(step, 'metadata.log_level') == 'verbose'",
+      "severity": "high",
+      "weight": 40
+    },
+    {
+      "rule_id": "dp-retention-exceeded",
+      "description": "Data stored beyond the declared retention window is a violation.",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.retention_days') is not None and get(step, 'metadata.retention_exceeded') is True",
+      "severity": "high",
+      "weight": 35
+    },
+    {
+      "rule_id": "dp-cross-border-transfer",
+      "description": "Data transfers across geographic regions require explicit approval.",
+      "condition": "get(step, 'metadata.source_region') is not None and get(step, 'metadata.dest_region') is not None and get(step, 'metadata.source_region') != get(step, 'metadata.dest_region') and get(step, 'metadata.transfer_approved') is not True",
+      "severity": "high",
+      "weight": 40
+    }
+  ]
+}

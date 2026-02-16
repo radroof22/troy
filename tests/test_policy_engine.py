@@ -7,10 +7,12 @@ import pytest
 from agent_audit.models import Step, StepType, Trace, Violation
 from agent_audit.policy.engine import (
     PolicyRule,
+    _make_step_dict,
     _matches,
     _safe_get,
     compute_risk_score,
     evaluate_policy,
+    evaluate_step,
 )
 
 
@@ -247,3 +249,32 @@ class TestComputeRiskScore:
             Violation(rule_id="r1", rule_description="d", step_id="s2"),
         ]
         assert compute_risk_score(violations, rules) == 30
+
+
+# ---------------------------------------------------------------------------
+# evaluate_step — consistency with evaluate_policy
+# ---------------------------------------------------------------------------
+
+class TestEvaluateStepConsistency:
+    """evaluate_step() should agree with evaluate_policy() for single-step traces."""
+
+    def test_single_step_same_result(self):
+        rule = PolicyRule(
+            rule_id="block-external",
+            description="Block external",
+            condition="get(step, 'metadata.network_zone') == 'external'",
+            severity="high",
+            weight=40,
+        )
+        step = Step(
+            step_id="s1", type=StepType.TOOL_CALL, description="send",
+            input={}, output={}, metadata={"network_zone": "external"},
+        )
+        # evaluate_policy on a single-step trace
+        trace = _make_trace([step])
+        policy_violations = evaluate_policy(trace, [rule])
+        # evaluate_step on the same step
+        step_violations = evaluate_step(_make_step_dict(step), [rule])
+
+        assert len(policy_violations) == len(step_violations)
+        assert policy_violations[0].rule_id == step_violations[0].rule_id

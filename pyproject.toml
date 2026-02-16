@@ -1,9 +1,24 @@
 [project]
 name = "agent-audit"
 version = "0.1.0"
-description = "CLI tool that audits agent execution traces against policies"
+description = "Audit agent execution traces against configurable policies — CLI, real-time guard SDK, and framework adapters"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.11"
+keywords = ["agent", "audit", "policy", "llm", "safety", "compliance", "guardrails", "soc2", "hipaa"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
 dependencies = [
     "openai>=1.0",
     "networkx>=3.0",
@@ -12,6 +27,11 @@ dependencies = [
     "python-dotenv>=1.2.1",
 ]
 
+[project.urls]
+Homepage = "https://github.com/sentosa-ai/agent-audit"
+Repository = "https://github.com/sentosa-ai/agent-audit"
+Issues = "https://github.com/sentosa-ai/agent-audit/issues"
+
 [project.scripts]
 agent-audit = "agent_audit.cli:main"
 
@@ -19,7 +39,22 @@ agent-audit = "agent_audit.cli:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["agent_audit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+]
+langchain = [
+    "langchain-core>=0.3.0",
+]
+openai-agents = [
+    "openai-agents>=0.1.0",
+]
+crewai = [
+    "crewai>=0.100.0",
 ]

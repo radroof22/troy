@@ -1,0 +1,62 @@
+{
+  "policy_id": "owasp-llm-top10",
+  "description": "Rules derived from the OWASP Top 10 for LLM Applications. Covers prompt injection, data leakage, insecure tool use, and excessive agency.",
+  "rules": [
+    {
+      "rule_id": "owasp-prompt-injection",
+      "description": "Detect prompt injection patterns in step inputs (OWASP LLM01).",
+      "condition": "matches(str(step.get('input', {})), r'ignore previous instructions|ignore all prior|disregard (your|all|the) (instructions|rules)|system prompt override|you are now|act as root|run as admin|new system prompt|forget everything')",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "owasp-sensitive-data-exposure",
+      "description": "Block PII or secrets from reaching external tools (OWASP LLM06).",
+      "condition": "get(step, 'metadata.data_classification') in ('pii', 'secret', 'confidential') and get(step, 'metadata.network_zone') == 'external'",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "owasp-sensitive-data-in-output",
+      "description": "Flag steps that output sensitive data without redaction (OWASP LLM06).",
+      "condition": "matches(str(step.get('output', {})), r'\\b\\d{3}-\\d{2}-\\d{4}\\b|\\b\\d{16}\\b|password\\s*[:=]')",
+      "severity": "high",
+      "weight": 40
+    },
+    {
+      "rule_id": "owasp-insecure-plugin-design",
+      "description": "Tool calls without input validation metadata are flagged (OWASP LLM07).",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.input_validated') is False",
+      "severity": "medium",
+      "weight": 20
+    },
+    {
+      "rule_id": "owasp-excessive-agency-shell",
+      "description": "Block unrestricted shell/exec tool access (OWASP LLM08).",
+      "condition": "step['type'] == 'tool_call' and matches(step['description'], r'^(bash|shell|exec|subprocess|os\\.system|eval)$')",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "owasp-excessive-agency-filesystem",
+      "description": "Flag write/delete operations on the filesystem (OWASP LLM08).",
+      "condition": "step['type'] == 'tool_call' and matches(step['description'], r'^(write_file|delete_file|rm|rmdir|unlink)$')",
+      "severity": "high",
+      "weight": 35
+    },
+    {
+      "rule_id": "owasp-excessive-agency-network",
+      "description": "Flag outbound network requests without approval (OWASP LLM08).",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.network_zone') == 'external' and get(step, 'metadata.approval_token') is None",
+      "severity": "high",
+      "weight": 35
+    },
+    {
+      "rule_id": "owasp-overreliance-no-source",
+      "description": "LLM outputs used in decisions should cite a source (OWASP LLM09).",
+      "condition": "step['type'] == 'llm_call' and get(step, 'metadata.requires_citation') is True and get(step, 'metadata.has_citation') is not True",
+      "severity": "medium",
+      "weight": 15
+    }
+  ]
+}

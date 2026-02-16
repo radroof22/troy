@@ -272,5 +272,263 @@ def replay(audit_file: Path, policy: Path | None, no_interactive: bool):
         run_interactive(session, renderer)
 
 
+@main.command()
+@click.argument("policy_file", type=click.Path(exists=True, path_type=Path))
+@click.option("--action", "-a", required=True, help="Tool or action name to evaluate.")
+@click.option("--input", "-i", "input_json", default=None, help="JSON string of input data.")
+@click.option("--step-type", "-t", type=click.Choice(["tool_call", "llm_call", "decision", "observation"]), default="tool_call", help="Step type.")
+@click.option("--mode", type=click.Choice(["enforce", "monitor", "dry-run"]), default="enforce", help="Guard mode.")
+@click.option("--agent-name", default="agent", help="Agent name for policy context.")
+@click.option("--metadata", "metadata_json", default=None, help="JSON string of step metadata.")
+@click.option("--agent-metadata", "agent_metadata_json", default=None, help="JSON string of agent metadata.")
+def check(
+    policy_file: Path,
+    action: str,
+    input_json: str | None,
+    step_type: str,
+    mode: str,
+    agent_name: str,
+    metadata_json: str | None,
+    agent_metadata_json: str | None,
+):
+    """Evaluate a single action against a policy (no LLM needed).
+
+    Returns JSON with {allowed, violations, risk_score, step_id, mode}.
+    Exit code 0 if allowed, 2 if blocked.
+
+    \b
+    Examples:
+        agent-audit check policy.json -a search -i '{"query": "SELECT * FROM users"}'
+        agent-audit check policy.json -a send_email --mode monitor
+        agent-audit check policy.json -a bash --metadata '{"permission_level": "admin"}'
+    """
+    import json as json_mod
+
+    from agent_audit.guard.core import AgentAuditGuard
+    from agent_audit.models import StepType
+
+    input_data = None
+    if input_json:
+        try:
+            input_data = json_mod.loads(input_json)
+        except json_mod.JSONDecodeError as e:
+            raise click.BadParameter(f"Invalid JSON for --input: {e}") from e
+
+    metadata = None
+    if metadata_json:
+        try:
+            metadata = json_mod.loads(metadata_json)
+        except json_mod.JSONDecodeError as e:
+            raise click.BadParameter(f"Invalid JSON for --metadata: {e}") from e
+
+    agent_metadata = None
+    if agent_metadata_json:
+        try:
+            agent_metadata = json_mod.loads(agent_metadata_json)
+        except json_mod.JSONDecodeError as e:
+            raise click.BadParameter(f"Invalid JSON for --agent-metadata: {e}") from e
+
+    guard = AgentAuditGuard(
+        policy=policy_file,
+        agent_name=agent_name,
+        mode=mode,
+        agent_metadata=agent_metadata,
+    )
+
+    stype = StepType(step_type)
+    decision = guard.check(
+        action=action,
+        input=input_data,
+        metadata=metadata,
+        step_type=stype,
+    )
+
+    output = {
+        "allowed": decision.allowed,
+        "step_id": decision.step_id,
+        "risk_score": decision.risk_score,
+        "mode": decision.mode,
+        "violations": [
+            {
+                "rule_id": v.rule_id,
+                "rule_description": v.rule_description,
+                "severity": v.severity,
+                "details": v.details,
+            }
+            for v in decision.violations
+        ],
+    }
+
+    click.echo(json_mod.dumps(output, indent=2))
+    raise SystemExit(0 if decision.allowed else 2)
+
+
+def _policies_dir() -> Path:
+    """Return the path to the bundled policy templates."""
+    return Path(__file__).parent / "policies"
+
+
+@main.group("policies")
+def policies_group():
+    """Browse and use bundled policy templates."""
+
+
+@policies_group.command("list")
+def policies_list():
+    """List all available policy templates.
+
+    \b
+    Example:
+        agent-audit policies list
+    """
+    import json as json_mod
+
+    policies_dir = _policies_dir()
+    if not policies_dir.exists():
+        click.echo("No bundled policies found.")
+        return
+
+    files = sorted(policies_dir.glob("*.json"))
+    if not files:
+        click.echo("No bundled policies found.")
+        return
+
+    for f in files:
+        data = json_mod.loads(f.read_text())
+        pid = data.get("policy_id", f.stem)
+        desc = data.get("description", "")
+        n_rules = len(data.get("rules", []))
+        click.echo(f"  {pid:<25} {n_rules:>2} rules  — {desc}")
+
+
+@policies_group.command("show")
+@click.argument("name")
+def policies_show(name: str):
+    """Show details of a policy template: description, rules, severities.
+
+    NAME is the policy id (e.g. 'soc2', 'hipaa', 'minimal').
+
+    \b
+    Example:
+        agent-audit policies show soc2
+    """
+    import json as json_mod
+
+    policies_dir = _policies_dir()
+    policy_file = policies_dir / f"{name}.json"
+    if not policy_file.exists():
+        # Try matching by policy_id
+        for f in policies_dir.glob("*.json"):
+            data = json_mod.loads(f.read_text())
+            if data.get("policy_id") == name:
+                policy_file = f
+                break
+        else:
+            click.echo(f"Policy '{name}' not found. Run 'agent-audit policies list' to see available policies.")
+            raise SystemExit(1)
+
+    data = json_mod.loads(policy_file.read_text())
+    click.echo(f"\n  {data.get('policy_id', policy_file.stem)}")
+    click.echo(f"  {data.get('description', '')}\n")
+
+    rules = data.get("rules", [])
+    for r in rules:
+        sev = r.get("severity", "medium")
+        sev_color = {"critical": "red", "high": "yellow", "medium": "cyan", "low": "green"}.get(sev, "white")
+        sev_label = click.style(f"[{sev}]", fg=sev_color)
+        click.echo(f"  {sev_label:>20}  {r['rule_id']}")
+        click.echo(f"              {r['description']}")
+
+    click.echo(f"\n  {len(rules)} rules total")
+    click.echo(f"  File: {policy_file}\n")
+
+
+@policies_group.command("copy")
+@click.argument("name")
+@click.option("--output", "-o", type=click.Path(path_type=Path), default=None, help="Destination path (default: ./<name>.json).")
+def policies_copy(name: str, output: Path | None):
+    """Copy a policy template to your project for customization.
+
+    NAME is the policy id (e.g. 'soc2', 'hipaa', 'minimal').
+
+    \b
+    Examples:
+        agent-audit policies copy soc2
+        agent-audit policies copy hipaa -o my_policy.json
+    """
+    import shutil
+
+    policies_dir = _policies_dir()
+    policy_file = policies_dir / f"{name}.json"
+    if not policy_file.exists():
+        import json as json_mod
+        for f in policies_dir.glob("*.json"):
+            data = json_mod.loads(f.read_text())
+            if data.get("policy_id") == name:
+                policy_file = f
+                break
+        else:
+            click.echo(f"Policy '{name}' not found. Run 'agent-audit policies list' to see available policies.")
+            raise SystemExit(1)
+
+    dest = output or Path(f"{name}.json")
+    if dest.exists():
+        click.confirm(f"{dest} already exists. Overwrite?", abort=True)
+
+    shutil.copy2(policy_file, dest)
+    click.echo(f"Copied {policy_file.name} → {dest}")
+    click.echo(f"Edit {dest} to customize rules for your project.")
+
+
+@policies_group.command("init")
+@click.option("--output", "-o", type=click.Path(path_type=Path), default=Path("policy.json"), help="Destination path (default: ./policy.json).")
+@click.option("--template", "-t", multiple=True, help="Policy template(s) to include (e.g. --template soc2 --template owasp_llm_top10). Default: minimal.")
+def policies_init(output: Path, template: tuple[str, ...]):
+    """Create a new policy file by combining one or more templates.
+
+    \b
+    Examples:
+        agent-audit policies init
+        agent-audit policies init -t soc2 -t hipaa -o enterprise_policy.json
+        agent-audit policies init -t owasp_llm_top10 -t safe_browsing
+    """
+    import json as json_mod
+
+    policies_dir = _policies_dir()
+    templates = template or ("minimal",)
+
+    combined_rules = []
+    descriptions = []
+    seen_rule_ids: set[str] = set()
+
+    for name in templates:
+        policy_file = policies_dir / f"{name}.json"
+        if not policy_file.exists():
+            click.echo(f"Policy '{name}' not found. Run 'agent-audit policies list' to see available policies.")
+            raise SystemExit(1)
+        data = json_mod.loads(policy_file.read_text())
+        descriptions.append(data.get("description", name))
+        for rule in data.get("rules", []):
+            if rule["rule_id"] not in seen_rule_ids:
+                combined_rules.append(rule)
+                seen_rule_ids.add(rule["rule_id"])
+
+    if output.exists():
+        click.confirm(f"{output} already exists. Overwrite?", abort=True)
+
+    result = {
+        "policy_id": "custom-policy",
+        "description": "Combined policy from: " + ", ".join(templates),
+        "rules": combined_rules,
+    }
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json_mod.dumps(result, indent=2) + "\n")
+    click.echo(f"Created {output} with {len(combined_rules)} rules from {len(templates)} template(s):")
+    for t in templates:
+        click.echo(f"  - {t}")
+    click.echo(f"\nEdit {output} to customize rules for your project.")
+
+
 if __name__ == "__main__":
     main()

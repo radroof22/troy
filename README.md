@@ -1,23 +1,39 @@
 # agent-audit
 
-CLI tool that audits agent execution traces against configurable policies. It ingests trace JSON, builds an execution graph, generates semantic explanations via an LLM, evaluates policy compliance, and outputs structured audit reports.
+Audit agent execution traces against configurable policies. Post-hoc auditing with LLM explanations, real-time interception via the guard SDK, and framework adapters for LangChain, OpenAI Agents, and CrewAI.
 
 ## Installation
 
 Requires Python 3.11+.
 
 ```bash
+pip install agent-audit
+```
+
+With framework adapters:
+
+```bash
+pip install agent-audit[langchain]    # LangChain callback handler
+pip install agent-audit[openai-agents] # OpenAI Agents SDK hooks
+pip install agent-audit[crewai]        # CrewAI global hooks
+```
+
+### From source
+
+```bash
+git clone https://github.com/sentosa-ai/agent-audit.git
+cd agent-audit
 uv sync
 ```
 
-Set up your LLM provider credentials:
+### LLM credentials (for `audit` / `audit-batch` commands)
 
 ```bash
 cp .env.example .env
 # Edit .env with your API key, base URL, and model
 ```
 
-Or pass them as flags / environment variables (see [Configuration](#configuration)).
+Or pass them as flags / environment variables (see [Configuration](#configuration)). The `check`, `replay`, and `policies` commands do not require an LLM.
 
 ## Quick Start
 
@@ -114,6 +130,34 @@ uv run agent-audit replay <audit_file> [OPTIONS]
 | `v` | Violations view |
 | `j` / `k` | Jump to next / previous violation |
 | `q` | Quit |
+
+### `check` — Single action policy check
+
+Evaluate one action against a policy. No LLM needed. Returns JSON. Exit code 0 if allowed, 2 if blocked.
+
+```bash
+agent-audit check policy.json -a search -i '{"query": "SELECT * FROM users"}'
+agent-audit check policy.json -a send_email --mode monitor
+agent-audit check policy.json -a bash --metadata '{"permission_level": "admin"}'
+```
+
+### `policies` — Browse and use policy templates
+
+```bash
+# List all bundled policy templates
+agent-audit policies list
+
+# Show rules in a specific policy
+agent-audit policies show soc2
+
+# Copy a template to your project
+agent-audit policies copy hipaa -o my_policy.json
+
+# Combine multiple templates into one policy
+agent-audit policies init -t soc2 -t hipaa -o policy.json
+```
+
+Available templates: `minimal`, `agent_safety`, `owasp_llm_top10`, `data_protection`, `safe_browsing`, `soc2`, `hipaa`.
 
 ## How It Works
 
@@ -282,4 +326,4 @@ uv run pytest tests/ -v
 - **Structured semantic diffing** — Diff two traces at the semantic level, not just textual
 - **Risk dashboards** — Visual dashboard for risk scores and violation trends over time
 - **RBAC** — Role-based access control for multi-user audit workflows
-- **SOC 2 compliance** — Built-in policy templates and reporting aligned with SOC 2 requirements
+- **Persistence** — SQLite trace storage for trend analysis and cross-session querying

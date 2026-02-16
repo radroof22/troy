@@ -1,0 +1,48 @@
+{
+  "policy_id": "safe-browsing",
+  "description": "Policy for agents that browse the web, fill forms, or interact with external websites. Prevents credential leakage, unsafe downloads, and unrestricted navigation.",
+  "rules": [
+    {
+      "rule_id": "browse-credential-leak",
+      "description": "Never submit credentials or tokens via browser form fills.",
+      "condition": "step['type'] == 'tool_call' and matches(step['description'], r'(fill_form|submit_form|type_text|send_keys)') and matches(str(step.get('input', {})), r'password|secret|token|api.?key|credential')",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "browse-domain-allowlist",
+      "description": "Navigation outside approved domains is flagged.",
+      "condition": "step['type'] == 'tool_call' and matches(step['description'], r'(navigate|goto|open_url|browse)') and get(step, 'metadata.domain_approved') is not True",
+      "severity": "high",
+      "weight": 35
+    },
+    {
+      "rule_id": "browse-download-restricted",
+      "description": "File downloads must be approved before execution.",
+      "condition": "step['type'] == 'tool_call' and matches(step['description'], r'(download|save_file|fetch_file)') and get(step, 'metadata.approval_token') is None",
+      "severity": "high",
+      "weight": 35
+    },
+    {
+      "rule_id": "browse-javascript-execution",
+      "description": "Arbitrary JS execution in browser context is high risk.",
+      "condition": "step['type'] == 'tool_call' and matches(step['description'], r'(execute_script|eval_js|run_javascript|inject_script)')",
+      "severity": "critical",
+      "weight": 45
+    },
+    {
+      "rule_id": "browse-data-extraction-unclassified",
+      "description": "Scraped data should be classified before further processing.",
+      "condition": "step['type'] == 'tool_call' and matches(step['description'], r'(scrape|extract|get_text|get_page)') and get(step, 'metadata.data_classification') is None",
+      "severity": "medium",
+      "weight": 15
+    },
+    {
+      "rule_id": "browse-payment-form",
+      "description": "Interacting with payment forms requires human approval.",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.category') == 'payment' and get(step, 'metadata.approval_token') is None",
+      "severity": "critical",
+      "weight": 50
+    }
+  ]
+}

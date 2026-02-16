@@ -1,0 +1,76 @@
+{
+  "policy_id": "soc2-trust-services",
+  "description": "Rules aligned with SOC 2 Trust Services Criteria. Covers security (CC6/CC7), availability (A1), processing integrity (PI1), confidentiality (C1), and privacy (P1).",
+  "rules": [
+    {
+      "rule_id": "soc2-access-control",
+      "description": "Agent must operate within its declared permission level (CC6.1 — Logical access security).",
+      "condition": "get(agent, 'metadata.permission_level') != 'admin' and get(step, 'metadata.permission_level') == 'admin'",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "soc2-auth-required",
+      "description": "External service calls must include an authentication method (CC6.1).",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.network_zone') == 'external' and get(step, 'metadata.auth_method') is None",
+      "severity": "high",
+      "weight": 35
+    },
+    {
+      "rule_id": "soc2-audit-trail",
+      "description": "All tool calls must carry a trace_id for audit trail reconstruction (CC7.2 — Monitoring).",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.trace_id') is None and get(step, 'metadata.session_id') is None",
+      "severity": "medium",
+      "weight": 15
+    },
+    {
+      "rule_id": "soc2-change-approval",
+      "description": "Write operations to production systems require change approval (CC8.1 — Change management).",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.environment') == 'production' and matches(step['description'], r'(write|update|delete|create|deploy|migrate|alter)') and get(step, 'metadata.change_ticket') is None",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "soc2-confidential-data",
+      "description": "Confidential data must not leave the internal network without encryption (C1.1).",
+      "condition": "get(step, 'metadata.data_classification') in ('confidential', 'restricted') and get(step, 'metadata.network_zone') == 'external' and get(step, 'metadata.encrypted') is not True",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "soc2-pii-consent",
+      "description": "Processing PII requires documented consent or legal basis (P1.1 — Privacy).",
+      "condition": "get(step, 'metadata.data_classification') == 'pii' and get(step, 'metadata.consent_token') is None and get(step, 'metadata.legal_basis') is None",
+      "severity": "critical",
+      "weight": 45
+    },
+    {
+      "rule_id": "soc2-incident-response",
+      "description": "Steps that encounter errors on critical systems should trigger incident tracking (CC7.3).",
+      "condition": "get(step, 'metadata.environment') == 'production' and get(step, 'metadata.error') is not None and get(step, 'metadata.incident_id') is None",
+      "severity": "high",
+      "weight": 35
+    },
+    {
+      "rule_id": "soc2-vendor-risk",
+      "description": "Calls to third-party services must reference an approved vendor (CC9.2 — Risk management).",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.network_zone') == 'external' and get(step, 'metadata.vendor_approved') is not True",
+      "severity": "high",
+      "weight": 30
+    },
+    {
+      "rule_id": "soc2-availability-destructive",
+      "description": "Destructive operations threaten system availability and require approval (A1.2).",
+      "condition": "step['type'] == 'tool_call' and matches(step['description'], r'(delete|drop|terminate|shutdown|kill|truncate|purge)') and get(step, 'metadata.approval_token') is None",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "soc2-processing-integrity",
+      "description": "Data transformations must be validated before output (PI1.3 — Processing integrity).",
+      "condition": "step['type'] == 'tool_call' and get(step, 'metadata.category') == 'data_transform' and get(step, 'metadata.output_validated') is not True",
+      "severity": "medium",
+      "weight": 20
+    }
+  ]
+}

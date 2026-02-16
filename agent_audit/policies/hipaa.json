@@ -1,0 +1,62 @@
+{
+  "policy_id": "hipaa-safeguards",
+  "description": "Rules aligned with HIPAA Security Rule safeguards. Covers access controls (164.312a), audit controls (164.312b), transmission security (164.312e), and the minimum necessary standard.",
+  "rules": [
+    {
+      "rule_id": "hipaa-phi-access-control",
+      "description": "Only authorized roles may access PHI (164.312(a) — Access control).",
+      "condition": "get(step, 'metadata.data_classification') == 'phi' and get(agent, 'metadata.hipaa_authorized') is not True",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "hipaa-phi-transmission",
+      "description": "PHI transmitted externally must be encrypted (164.312(e) — Transmission security).",
+      "condition": "get(step, 'metadata.data_classification') == 'phi' and get(step, 'metadata.network_zone') == 'external' and get(step, 'metadata.encrypted') is not True",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "hipaa-phi-audit-log",
+      "description": "All PHI access must carry an audit reference (164.312(b) — Audit controls).",
+      "condition": "get(step, 'metadata.data_classification') == 'phi' and get(step, 'metadata.audit_ref') is None",
+      "severity": "high",
+      "weight": 40
+    },
+    {
+      "rule_id": "hipaa-minimum-necessary",
+      "description": "PHI queries should request only the minimum necessary fields (164.502(b)).",
+      "condition": "get(step, 'metadata.data_classification') == 'phi' and get(step, 'metadata.fields_scoped') is not True",
+      "severity": "high",
+      "weight": 35
+    },
+    {
+      "rule_id": "hipaa-phi-exfiltration",
+      "description": "PHI accessed in one step must not be sent externally in a later step.",
+      "condition": "get(step, 'metadata.network_zone') == 'external' and any_prev(lambda s: get(s, 'metadata.data_classification') == 'phi')",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "hipaa-phi-retention",
+      "description": "PHI stored beyond the retention period is a violation (164.530(j)).",
+      "condition": "get(step, 'metadata.data_classification') == 'phi' and get(step, 'metadata.retention_exceeded') is True",
+      "severity": "high",
+      "weight": 40
+    },
+    {
+      "rule_id": "hipaa-baa-required",
+      "description": "PHI shared with third parties requires an active BAA (164.502(e)).",
+      "condition": "get(step, 'metadata.data_classification') == 'phi' and get(step, 'metadata.network_zone') == 'external' and get(step, 'metadata.baa_on_file') is not True",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "hipaa-emergency-access",
+      "description": "Emergency PHI access must be flagged and reviewed (164.312(a)(2)(ii)).",
+      "condition": "get(step, 'metadata.data_classification') == 'phi' and get(step, 'metadata.access_type') == 'emergency' and get(step, 'metadata.reviewed') is not True",
+      "severity": "high",
+      "weight": 35
+    }
+  ]
+}

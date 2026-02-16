@@ -139,6 +139,61 @@ def evaluate_policy(trace: Trace, rules: list[PolicyRule]) -> list[Violation]:
     return violations
 
 
+def evaluate_step(
+    step_dict: dict[str, Any],
+    rules: list[PolicyRule],
+    prev_steps: list[dict[str, Any]] | None = None,
+    agent: dict[str, Any] | None = None,
+    trace: dict[str, Any] | None = None,
+) -> list[Violation]:
+    """Evaluate all rules against a single step in real-time.
+
+    Unlike evaluate_policy(), this has no knowledge of future steps:
+    next_steps is always empty and any_next() always returns False.
+    Cross-step rules (e.g. PII exfiltration) should use any_prev() instead.
+    """
+    prev_steps = prev_steps or []
+    agent = agent or {}
+    trace = trace or {}
+    all_steps = prev_steps + [step_dict]
+
+    eval_context = {
+        "step": step_dict,
+        "steps": all_steps,
+        "step_index": len(prev_steps),
+        "prev_steps": prev_steps,
+        "next_steps": [],
+        "trace": trace,
+        "agent": agent,
+        "any_step": lambda fn, _s=all_steps: any(fn(s) for s in _s),
+        "any_next": lambda fn: False,
+        "any_prev": lambda fn, _s=prev_steps: any(fn(s) for s in _s),
+        "matches": _matches,
+        "get": _safe_get,
+        "True": True,
+        "False": False,
+        "None": None,
+        "str": str,
+    }
+    eval_globals = {"__builtins__": {}, **eval_context}
+
+    violations = []
+    for rule in rules:
+        try:
+            violated = eval(rule.condition, eval_globals)
+        except Exception:
+            continue
+        if violated:
+            violations.append(Violation(
+                rule_id=rule.rule_id,
+                rule_description=rule.description,
+                step_id=step_dict.get("step_id", "unknown"),
+                severity=rule.severity,
+                details=f"Rule '{rule.description}' violated at step {step_dict.get('step_id', 'unknown')}",
+            ))
+    return violations
+
+
 def compute_risk_score(violations: list[Violation], rules: list[PolicyRule]) -> int:
     """Compute overall risk score: min(100, sum of weights for violated rules)."""
     rule_weights = {r.rule_id: r.weight for r in rules}

@@ -1,0 +1,27 @@
+{
+  "policy_id": "minimal",
+  "description": "Minimal starter policy with the three most essential guardrails. Good starting point for new projects.",
+  "rules": [
+    {
+      "rule_id": "min-prompt-injection",
+      "description": "Detect common prompt injection patterns in inputs.",
+      "condition": "matches(str(step.get('input', {})), r'ignore previous instructions|ignore all prior|disregard your instructions|you are now|new system prompt')",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "min-destructive-action",
+      "description": "Destructive operations require an approval token.",
+      "condition": "step['type'] == 'tool_call' and matches(step['description'], r'(delete|drop|kill|rm|format|truncate)') and get(step, 'metadata.approval_token') is None",
+      "severity": "critical",
+      "weight": 50
+    },
+    {
+      "rule_id": "min-shell-execution",
+      "description": "Shell command execution is flagged as high risk.",
+      "condition": "step['type'] == 'tool_call' and matches(step['description'], r'^(bash|shell|exec|subprocess)$')",
+      "severity": "high",
+      "weight": 40
+    }
+  ]
+}
