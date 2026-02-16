@@ -43,25 +43,29 @@ def _write_raw_responses(result: AuditResult, trace_log_dir: Path) -> None:
         (resp_dir / "trace_summary.txt").write_text(result.summary.raw_response)
 
 
-def _run_audit(trace: Trace, rules: list[PolicyRule], explainer: LLMExplainer) -> AuditResult:
+def _run_audit(trace: Trace, rules: list[PolicyRule], explainer: LLMExplainer | None) -> AuditResult:
     """Run the core audit pipeline on a single trace."""
     # Build execution graph
     click.echo("Building execution graph...")
     graph = build_execution_graph(trace)
     click.echo(f"Graph: {graph.number_of_nodes()} nodes, {graph.number_of_edges()} edges.")
 
-    # Generate explanations
-    click.echo("Generating explanations...")
+    # Generate explanations (skip if no explainer)
     explanations = []
-    for i, step in enumerate(trace.steps):
-        click.echo(f"  Explaining step {step.step_id}...")
-        preceding = trace.steps[:i]
-        following = trace.steps[i + 1 :]
-        explanation = explainer.explain_step(step, preceding, following)
-        explanations.append(explanation)
+    summary = None
+    if explainer:
+        click.echo("Generating explanations...")
+        for i, step in enumerate(trace.steps):
+            click.echo(f"  Explaining step {step.step_id}...")
+            preceding = trace.steps[:i]
+            following = trace.steps[i + 1 :]
+            explanation = explainer.explain_step(step, preceding, following)
+            explanations.append(explanation)
 
-    click.echo("Generating trace summary...")
-    summary = explainer.summarize_trace(trace)
+        click.echo("Generating trace summary...")
+        summary = explainer.summarize_trace(trace)
+    else:
+        click.echo("Skipping LLM explanations (--no-explain).")
 
     # Evaluate policy
     violations = evaluate_policy(trace, rules)
@@ -90,7 +94,8 @@ def main():
 @click.option("--model", "-m", envvar="AGENT_AUDIT_MODEL", default="gpt-4o-mini", help="Model name (or set AGENT_AUDIT_MODEL).")
 @click.option("--base-url", envvar="OPENAI_BASE_URL", default=None, help="API base URL (or set OPENAI_BASE_URL).")
 @click.option("--api-key", envvar="OPENAI_API_KEY", default=None, help="API key (or set OPENAI_API_KEY).")
-def audit(trace_file: Path, policy_file: Path, output: Path | None, json_output: Path | None, model: str, base_url: str | None, api_key: str | None):
+@click.option("--no-explain", is_flag=True, default=False, help="Skip LLM explanations (policy evaluation and scoring only, no API key needed).")
+def audit(trace_file: Path, policy_file: Path, output: Path | None, json_output: Path | None, model: str, base_url: str | None, api_key: str | None, no_explain: bool):
     """Audit an agent execution trace against a policy file."""
     # 1. Ingest trace
     click.echo(f"Loading trace from {trace_file}...")
@@ -102,7 +107,9 @@ def audit(trace_file: Path, policy_file: Path, output: Path | None, json_output:
     rules = load_policy(policy_file)
 
     # 3. Run audit pipeline
-    explainer = LLMExplainer(model=model, base_url=base_url, api_key=api_key)
+    explainer = None
+    if not no_explain:
+        explainer = LLMExplainer(model=model, base_url=base_url, api_key=api_key)
     result = _run_audit(trace, rules, explainer)
 
     # 4. Generate reports — default to ./logs/{date}/
@@ -120,25 +127,26 @@ def audit(trace_file: Path, policy_file: Path, output: Path | None, json_output:
     write_report(json_report, json_output)
     click.echo(f"JSON report written to {json_output}")
 
-    _write_raw_responses(result, log_dir)
-    click.echo(f"Raw LLM responses written to {log_dir / 'llm_responses'}")
+    if not no_explain:
+        _write_raw_responses(result, log_dir)
+        click.echo(f"Raw LLM responses written to {log_dir / 'llm_responses'}")
 
 
-async def _run_audit_async(trace: Trace, rules: list[PolicyRule], explainer: LLMExplainer) -> AuditResult:
+async def _run_audit_async(trace: Trace, rules: list[PolicyRule], explainer: LLMExplainer | None) -> AuditResult:
     """Run the core audit pipeline on a single trace, using async API calls."""
     graph = build_execution_graph(trace)
 
-    # Fire all step explanations concurrently
-    tasks = []
-    for i, step in enumerate(trace.steps):
-        preceding = trace.steps[:i]
-        following = trace.steps[i + 1 :]
-        tasks.append(explainer.aexplain_step(step, preceding, following))
-    explanations = list(await asyncio.gather(*tasks))
+    explanations = []
+    summary = None
+    if explainer:
+        tasks = []
+        for i, step in enumerate(trace.steps):
+            preceding = trace.steps[:i]
+            following = trace.steps[i + 1 :]
+            tasks.append(explainer.aexplain_step(step, preceding, following))
+        explanations = list(await asyncio.gather(*tasks))
+        summary = await explainer.asummarize_trace(trace)
 
-    summary = await explainer.asummarize_trace(trace)
-
-    # Policy eval is pure computation — no I/O
     violations = evaluate_policy(trace, rules)
     risk_score = compute_risk_score(violations, rules)
 
@@ -157,6 +165,7 @@ async def _run_batch(
     model: str,
     base_url: str | None,
     api_key: str | None,
+    no_explain: bool = False,
 ):
     """Async batch audit: run all traces concurrently with a semaphore."""
     trace_files = sorted(trace_dir.glob("*.json"))
@@ -174,8 +183,12 @@ async def _run_batch(
     click.echo(f"Loading policy from {policy_file}...")
     rules = load_policy(policy_file)
 
-    # Create explainer once (shared async client)
-    explainer = LLMExplainer(model=model, base_url=base_url, api_key=api_key)
+    # Create explainer once (shared async client) — or None if skipping
+    explainer = None
+    if not no_explain:
+        explainer = LLMExplainer(model=model, base_url=base_url, api_key=api_key)
+    else:
+        click.echo("Skipping LLM explanations (--no-explain).")
 
     log_dir = Path("logs") / date.today().isoformat()
     sem = asyncio.Semaphore(5)
@@ -210,7 +223,8 @@ async def _run_batch(
             json_report = generate_json_report(result)
             write_report(json_report, trace_log_dir / "audit.json")
 
-            _write_raw_responses(result, trace_log_dir)
+            if not no_explain:
+                _write_raw_responses(result, trace_log_dir)
             return result
 
     raw_results = await asyncio.gather(*[_process_one(tf, t) for tf, t in loaded])
@@ -237,9 +251,10 @@ async def _run_batch(
 @click.option("--model", "-m", envvar="AGENT_AUDIT_MODEL", default="gpt-4o-mini", help="Model name (or set AGENT_AUDIT_MODEL).")
 @click.option("--base-url", envvar="OPENAI_BASE_URL", default=None, help="API base URL (or set OPENAI_BASE_URL).")
 @click.option("--api-key", envvar="OPENAI_API_KEY", default=None, help="API key (or set OPENAI_API_KEY).")
-def audit_batch(trace_dir: Path, policy_file: Path, model: str, base_url: str | None, api_key: str | None):
+@click.option("--no-explain", is_flag=True, default=False, help="Skip LLM explanations (policy evaluation and scoring only, no API key needed).")
+def audit_batch(trace_dir: Path, policy_file: Path, model: str, base_url: str | None, api_key: str | None, no_explain: bool):
     """Audit all traces in a directory against a policy file."""
-    asyncio.run(_run_batch(trace_dir, policy_file, model, base_url, api_key))
+    asyncio.run(_run_batch(trace_dir, policy_file, model, base_url, api_key, no_explain=no_explain))
 
 
 @main.command()
