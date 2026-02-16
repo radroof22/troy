@@ -4,10 +4,40 @@ from __future__ import annotations
 
 import json
 import re
+import warnings
 from pathlib import Path
 from typing import Any
 
 from troy.models import Step, Trace, Violation
+
+# Matches get(step, 'metadata.X') or get(step, "metadata.X") patterns
+_STEP_METADATA_RE = re.compile(
+    r"""get\s*\(\s*step\s*,\s*['"]metadata\.([^'"]+)['"]"""
+)
+
+# Deduplicate warnings so each (rule_id, key) combo only warns once per process
+_warned_missing: set[tuple[str, str]] = set()
+
+
+def _warn_missing_metadata(
+    rule: PolicyRule,
+    step_metadata: dict[str, Any],
+) -> None:
+    """Emit a warning for each step-metadata key referenced by the rule but absent from the step."""
+    keys = _STEP_METADATA_RE.findall(rule.condition)
+    for key in keys:
+        top_key = key.split(".")[0]
+        if top_key not in step_metadata:
+            dedup_key = (rule.rule_id, key)
+            if dedup_key not in _warned_missing:
+                _warned_missing.add(dedup_key)
+                warnings.warn(
+                    f"Policy rule '{rule.rule_id}' checks metadata key '{key}' "
+                    f"but the step has no such metadata. "
+                    f"If using an adapter, pass a metadata_fn that returns this key.",
+                    UserWarning,
+                    stacklevel=4,
+                )
 
 
 class PolicyRule:
@@ -177,8 +207,11 @@ def evaluate_step(
     }
     eval_globals = {"__builtins__": {}, **eval_context}
 
+    step_metadata = step_dict.get("metadata", {})
+
     violations = []
     for rule in rules:
+        _warn_missing_metadata(rule, step_metadata)
         try:
             violated = eval(rule.condition, eval_globals)
         except Exception:

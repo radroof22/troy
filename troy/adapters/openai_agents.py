@@ -29,6 +29,7 @@ class TroyHooks(AgentHooks):
         agent_name: str = "openai-agent",
         on_violation: Callable[[Decision], None] | None = None,
         agent_metadata: dict[str, Any] | None = None,
+        metadata_fn: Callable[[str, dict[str, Any], StepType], dict[str, Any]] | None = None,
     ) -> None:
         self._guard = TroyGuard(
             policy=policy,
@@ -37,6 +38,7 @@ class TroyHooks(AgentHooks):
             on_violation=on_violation,
             agent_metadata=agent_metadata,
         )
+        self._metadata_fn = metadata_fn
         self._tool_step_ids: dict[str, str] = {}
 
     @property
@@ -45,9 +47,12 @@ class TroyHooks(AgentHooks):
 
     async def on_tool_start(self, context: Any, agent: Any, tool: Any) -> None:
         tool_name = getattr(tool, "name", str(tool))
+        input_data = {"tool": tool_name}
+        metadata = self._metadata_fn(tool_name, input_data, StepType.TOOL_CALL) if self._metadata_fn else None
         decision = self._guard.check(
             action=tool_name,
-            input={"tool": tool_name},
+            input=input_data,
+            metadata=metadata,
             step_type=StepType.TOOL_CALL,
         )
         self._tool_step_ids[tool_name] = decision.step_id
@@ -65,9 +70,12 @@ class TroyHooks(AgentHooks):
 
     async def on_llm_start(self, context: Any, agent: Any, system_prompt: str | None = None, input_items: Any = None) -> None:
         agent_name = getattr(agent, "name", "unknown_agent")
+        input_data = {"system_prompt": system_prompt or "", "input_items": str(input_items or [])}
+        metadata = self._metadata_fn(agent_name, input_data, StepType.LLM_CALL) if self._metadata_fn else None
         decision = self._guard.check(
             action=agent_name,
-            input={"system_prompt": system_prompt or "", "input_items": str(input_items or [])},
+            input=input_data,
+            metadata=metadata,
             step_type=StepType.LLM_CALL,
         )
         self._tool_step_ids["__llm__"] = decision.step_id

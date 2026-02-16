@@ -36,6 +36,7 @@ def enable_troy(
     agent_name: str = "crewai-agent",
     on_violation: Callable[[Decision], None] | None = None,
     agent_metadata: dict[str, Any] | None = None,
+    metadata_fn: Callable[[str, dict[str, Any], StepType], dict[str, Any]] | None = None,
 ) -> TroyGuard:
     """Enable audit hooks for CrewAI tool calls. Returns the guard instance."""
     global _before_hook, _after_hook, _guard, _step_ids
@@ -55,9 +56,11 @@ def enable_troy(
         if isinstance(tool_input, str):
             tool_input = {"input": tool_input}
 
+        meta = metadata_fn(tool_name, tool_input, StepType.TOOL_CALL) if metadata_fn else None
         decision = _guard.check(
             action=tool_name,
             input=tool_input,
+            metadata=meta,
             step_type=StepType.TOOL_CALL,
         )
         _step_ids[tool_name] = decision.step_id

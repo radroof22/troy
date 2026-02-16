@@ -303,6 +303,43 @@ Conditions are Python expressions evaluated per-step with these variables and he
 
 Malformed or erroring conditions are silently skipped — they won't crash the engine.
 
+## Framework Adapters
+
+All adapters accept an optional `metadata_fn` callback that maps each action to security metadata. This enables metadata-based policy rules (e.g. `network_zone`, `data_classification`, `approval_token`) when using framework integrations.
+
+```python
+from troy.models import StepType
+
+def my_metadata(action: str, input_data: dict, step_type: StepType) -> dict:
+    """Map tool/LLM calls to security metadata for policy evaluation."""
+    meta = {"network_zone": "internal", "data_classification": "public"}
+    if action in ("send_email", "http_request"):
+        meta["network_zone"] = "external"
+    if step_type == StepType.TOOL_CALL and "pii" in str(input_data):
+        meta["data_classification"] = "pii"
+    return meta
+```
+
+**LangChain:**
+```python
+from troy.adapters.langchain import TroyHandler
+handler = TroyHandler(policy="policy.json", metadata_fn=my_metadata)
+```
+
+**OpenAI Agents SDK:**
+```python
+from troy.adapters.openai_agents import TroyHooks
+hooks = TroyHooks(policy="policy.json", metadata_fn=my_metadata)
+```
+
+**CrewAI:**
+```python
+from troy.adapters.crewai import enable_troy
+guard = enable_troy(policy="policy.json", metadata_fn=my_metadata)
+```
+
+Without `metadata_fn`, adapters pass no step metadata — only tool-name and input-content policy rules will fire.
+
 ## Configuration
 
 LLM settings can be configured three ways (in order of precedence):

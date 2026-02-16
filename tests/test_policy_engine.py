@@ -10,6 +10,7 @@ from troy.policy.engine import (
     _make_step_dict,
     _matches,
     _safe_get,
+    _warned_missing,
     compute_risk_score,
     evaluate_policy,
     evaluate_step,
@@ -278,3 +279,106 @@ class TestEvaluateStepConsistency:
 
         assert len(policy_violations) == len(step_violations)
         assert policy_violations[0].rule_id == step_violations[0].rule_id
+
+
+# ---------------------------------------------------------------------------
+# Missing metadata warnings
+# ---------------------------------------------------------------------------
+
+class TestMissingMetadataWarnings:
+    """Warn users when policy rules reference metadata keys absent from the step."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_warned(self):
+        _warned_missing.clear()
+
+    def test_warns_on_missing_metadata_key(self):
+        rule = PolicyRule(
+            rule_id="needs-zone",
+            description="Block external",
+            condition="get(step, 'metadata.network_zone') == 'external'",
+            severity="high",
+        )
+        step_dict = _make_step_dict(
+            Step(step_id="s1", type=StepType.TOOL_CALL, description="x",
+                 input={}, output={}, metadata={}),
+        )
+        with pytest.warns(UserWarning, match="network_zone"):
+            evaluate_step(step_dict, [rule])
+
+    def test_no_warning_when_metadata_present(self):
+        rule = PolicyRule(
+            rule_id="needs-zone",
+            description="Block external",
+            condition="get(step, 'metadata.network_zone') == 'external'",
+            severity="high",
+        )
+        step_dict = _make_step_dict(
+            Step(step_id="s1", type=StepType.TOOL_CALL, description="x",
+                 input={}, output={}, metadata={"network_zone": "internal"}),
+        )
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            evaluate_step(step_dict, [rule])
+
+    def test_warns_on_multiple_missing_keys(self):
+        rule = PolicyRule(
+            rule_id="complex",
+            description="Complex rule",
+            condition="get(step, 'metadata.network_zone') == 'external' and get(step, 'metadata.data_classification') == 'pii'",
+            severity="high",
+        )
+        step_dict = _make_step_dict(
+            Step(step_id="s1", type=StepType.TOOL_CALL, description="x",
+                 input={}, output={}, metadata={}),
+        )
+        with pytest.warns(UserWarning) as record:
+            evaluate_step(step_dict, [rule])
+        messages = [str(w.message) for w in record]
+        assert any("network_zone" in m for m in messages)
+        assert any("data_classification" in m for m in messages)
+
+    def test_no_warning_for_rules_without_metadata(self):
+        rule = PolicyRule(
+            rule_id="simple",
+            description="Block all tool calls",
+            condition="step['type'] == 'tool_call'",
+            severity="high",
+        )
+        step_dict = _make_step_dict(
+            Step(step_id="s1", type=StepType.TOOL_CALL, description="x",
+                 input={}, output={}, metadata={}),
+        )
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            evaluate_step(step_dict, [rule])
+
+    def test_warning_mentions_rule_id(self):
+        rule = PolicyRule(
+            rule_id="my-rule-id",
+            description="Block external",
+            condition="get(step, 'metadata.network_zone') == 'external'",
+            severity="high",
+        )
+        step_dict = _make_step_dict(
+            Step(step_id="s1", type=StepType.TOOL_CALL, description="x",
+                 input={}, output={}, metadata={}),
+        )
+        with pytest.warns(UserWarning, match="my-rule-id"):
+            evaluate_step(step_dict, [rule])
+
+    def test_warning_mentions_metadata_fn(self):
+        rule = PolicyRule(
+            rule_id="needs-zone",
+            description="Block external",
+            condition="get(step, 'metadata.network_zone') == 'external'",
+            severity="high",
+        )
+        step_dict = _make_step_dict(
+            Step(step_id="s1", type=StepType.TOOL_CALL, description="x",
+                 input={}, output={}, metadata={}),
+        )
+        with pytest.warns(UserWarning, match="metadata_fn"):
+            evaluate_step(step_dict, [rule])

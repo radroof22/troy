@@ -37,6 +37,18 @@ def _allow_all_rules() -> list[PolicyRule]:
     return []
 
 
+def _block_external_network_rule() -> list[PolicyRule]:
+    """Policy that blocks steps with network_zone=external metadata."""
+    return [
+        PolicyRule(
+            rule_id="block-external",
+            description="Block external network calls",
+            condition="get(step, 'metadata.network_zone') == 'external'",
+            severity="critical",
+        )
+    ]
+
+
 # ---------------------------------------------------------------------------
 # LangChain Adapter
 # ---------------------------------------------------------------------------
@@ -145,6 +157,52 @@ class TestLangChainAdapter:
         handler.on_tool_error(RuntimeError("boom"), run_id=run_id)
         assert handler.guard._steps[0].output == {"error": "boom"}
 
+    def test_metadata_fn_called_on_tool_start(self):
+        calls = []
+        def meta_fn(action, input_data, step_type):
+            calls.append((action, input_data, step_type))
+            return {"network_zone": "internal"}
+        handler = self.TroyHandler(policy=_allow_all_rules(), metadata_fn=meta_fn)
+        handler.on_tool_start({"name": "search"}, "query", run_id=uuid4())
+        assert len(calls) == 1
+        assert calls[0][0] == "search"
+        assert calls[0][2] == StepType.TOOL_CALL
+        assert handler.guard._steps[0].metadata == {"network_zone": "internal"}
+
+    def test_metadata_fn_called_on_llm_start(self):
+        calls = []
+        def meta_fn(action, input_data, step_type):
+            calls.append((action, input_data, step_type))
+            return {"network_zone": "internal"}
+        handler = self.TroyHandler(policy=_allow_all_rules(), metadata_fn=meta_fn)
+        handler.on_llm_start({"name": "gpt-4"}, ["Hello"], run_id=uuid4())
+        assert len(calls) == 1
+        assert calls[0][0] == "gpt-4"
+        assert calls[0][2] == StepType.LLM_CALL
+        assert handler.guard._steps[0].metadata == {"network_zone": "internal"}
+
+    def test_metadata_fn_triggers_policy_block(self):
+        handler = self.TroyHandler(
+            policy=_block_external_network_rule(),
+            mode="enforce",
+            metadata_fn=lambda action, inp, st: {"network_zone": "external"},
+        )
+        with pytest.raises(PermissionError, match="Blocked by policy"):
+            handler.on_tool_start({"name": "search"}, "query", run_id=uuid4())
+
+    def test_no_metadata_fn_skips_metadata_rule(self):
+        handler = self.TroyHandler(policy=_block_external_network_rule(), mode="enforce")
+        # No metadata_fn → no network_zone → rule doesn't fire
+        handler.on_tool_start({"name": "search"}, "query", run_id=uuid4())
+
+    def test_metadata_fn_empty_dict(self):
+        handler = self.TroyHandler(
+            policy=_block_external_network_rule(),
+            mode="enforce",
+            metadata_fn=lambda action, inp, st: {},
+        )
+        handler.on_tool_start({"name": "search"}, "query", run_id=uuid4())
+
     def test_import_error_message(self, monkeypatch):
         # Remove the fake langchain_core so the real ImportError fires
         for key in list(sys.modules):
@@ -230,6 +288,50 @@ class TestOpenAIAgentsAdapter:
     def test_guard_property(self):
         hooks = self.TroyHooks(policy=_allow_all_rules())
         assert isinstance(hooks.guard, TroyGuard)
+
+    def test_metadata_fn_called_on_tool_start(self):
+        calls = []
+        def meta_fn(action, input_data, step_type):
+            calls.append((action, input_data, step_type))
+            return {"network_zone": "internal"}
+        hooks = self.TroyHooks(policy=_allow_all_rules(), metadata_fn=meta_fn)
+        tool = MagicMock()
+        tool.name = "search"
+        self._run(hooks.on_tool_start(MagicMock(), MagicMock(), tool))
+        assert len(calls) == 1
+        assert calls[0][0] == "search"
+        assert calls[0][2] == StepType.TOOL_CALL
+        assert hooks.guard._steps[0].metadata == {"network_zone": "internal"}
+
+    def test_metadata_fn_called_on_llm_start(self):
+        calls = []
+        def meta_fn(action, input_data, step_type):
+            calls.append((action, input_data, step_type))
+            return {"network_zone": "internal"}
+        hooks = self.TroyHooks(policy=_allow_all_rules(), metadata_fn=meta_fn)
+        agent = MagicMock()
+        agent.name = "my-agent"
+        self._run(hooks.on_llm_start(MagicMock(), agent, "You are helpful", []))
+        assert len(calls) == 1
+        assert calls[0][0] == "my-agent"
+        assert calls[0][2] == StepType.LLM_CALL
+
+    def test_metadata_fn_triggers_policy_block(self):
+        hooks = self.TroyHooks(
+            policy=_block_external_network_rule(),
+            mode="enforce",
+            metadata_fn=lambda action, inp, st: {"network_zone": "external"},
+        )
+        tool = MagicMock()
+        tool.name = "search"
+        with pytest.raises(PermissionError, match="Blocked by policy"):
+            self._run(hooks.on_tool_start(MagicMock(), MagicMock(), tool))
+
+    def test_no_metadata_fn_skips_metadata_rule(self):
+        hooks = self.TroyHooks(policy=_block_external_network_rule(), mode="enforce")
+        tool = MagicMock()
+        tool.name = "search"
+        self._run(hooks.on_tool_start(MagicMock(), MagicMock(), tool))
 
     def test_import_error_message(self, monkeypatch):
         for key in list(sys.modules):
@@ -319,6 +421,41 @@ class TestCrewAIAdapter:
         result = self._before[0](ctx)
         assert result is None  # monitor mode allows
         assert len(violations_seen) == 1
+
+    def test_metadata_fn_called_in_before_hook(self):
+        calls = []
+        def meta_fn(action, input_data, step_type):
+            calls.append((action, input_data, step_type))
+            return {"network_zone": "internal"}
+        guard = self.enable_troy(policy=_allow_all_rules(), metadata_fn=meta_fn)
+        ctx = MagicMock()
+        ctx.tool_name = "search"
+        ctx.tool_input = {"q": "test"}
+        self._before[0](ctx)
+        assert len(calls) == 1
+        assert calls[0][0] == "search"
+        assert calls[0][2] == StepType.TOOL_CALL
+        assert guard._steps[0].metadata == {"network_zone": "internal"}
+
+    def test_metadata_fn_triggers_policy_block(self):
+        self.enable_troy(
+            policy=_block_external_network_rule(),
+            mode="enforce",
+            metadata_fn=lambda action, inp, st: {"network_zone": "external"},
+        )
+        ctx = MagicMock()
+        ctx.tool_name = "search"
+        ctx.tool_input = {}
+        result = self._before[0](ctx)
+        assert result is False
+
+    def test_no_metadata_fn_skips_metadata_rule(self):
+        self.enable_troy(policy=_block_external_network_rule(), mode="enforce")
+        ctx = MagicMock()
+        ctx.tool_name = "search"
+        ctx.tool_input = {}
+        result = self._before[0](ctx)
+        assert result is None  # allowed
 
     def test_disable_troy(self):
         self.enable_troy(policy=_allow_all_rules())

@@ -31,6 +31,7 @@ class TroyHandler(BaseCallbackHandler):
         agent_name: str = "langchain-agent",
         on_violation: Callable[[Decision], None] | None = None,
         agent_metadata: dict[str, Any] | None = None,
+        metadata_fn: Callable[[str, dict[str, Any], StepType], dict[str, Any]] | None = None,
     ) -> None:
         super().__init__()
         self._guard = TroyGuard(
@@ -40,6 +41,7 @@ class TroyHandler(BaseCallbackHandler):
             on_violation=on_violation,
             agent_metadata=agent_metadata,
         )
+        self._metadata_fn = metadata_fn
         self._run_to_step: dict[UUID, str] = {}
 
     @property
@@ -59,9 +61,11 @@ class TroyHandler(BaseCallbackHandler):
         if isinstance(input_data, str):
             input_data = {"input": input_data}
 
+        metadata = self._metadata_fn(tool_name, input_data, StepType.TOOL_CALL) if self._metadata_fn else None
         decision = self._guard.check(
             action=tool_name,
             input=input_data,
+            metadata=metadata,
             step_type=StepType.TOOL_CALL,
         )
         self._run_to_step[run_id] = decision.step_id
@@ -90,9 +94,12 @@ class TroyHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         model_name = serialized.get("name", serialized.get("id", ["unknown"])[-1] if serialized.get("id") else "unknown_llm")
+        input_data = {"prompts": prompts}
+        metadata = self._metadata_fn(model_name, input_data, StepType.LLM_CALL) if self._metadata_fn else None
         decision = self._guard.check(
             action=model_name,
-            input={"prompts": prompts},
+            input=input_data,
+            metadata=metadata,
             step_type=StepType.LLM_CALL,
         )
         self._run_to_step[run_id] = decision.step_id
