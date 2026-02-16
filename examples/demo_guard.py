@@ -1,10 +1,10 @@
-"""Demo: Real-time interception with AgentAuditGuard.
+"""Demo: Real-time interception with TroyGuard.
 
 Run with:  uv run python examples/demo_guard.py
 """
 
-from agent_audit.guard import AgentAuditGuard, Decision
-from agent_audit.policy.engine import PolicyRule
+from troy.guard import TroyGuard, Decision
+from troy.policy.engine import PolicyRule
 
 
 # -- Policy rules using real-time any_prev() pattern --------------------------
@@ -42,7 +42,7 @@ def print_decision(label: str, decision: Decision) -> None:
 
 def demo_safe_workflow():
     print("\n=== Scenario 1: Safe workflow (enforce mode) ===")
-    guard = AgentAuditGuard(policy=RULES, agent_name="safe-agent", mode="enforce")
+    guard = TroyGuard(policy=RULES, agent_name="safe-agent", mode="enforce")
 
     d1 = guard.check("read_public_data", metadata={"data_classification": "public"})
     print_decision("read_public_data", d1)
@@ -57,7 +57,7 @@ def demo_safe_workflow():
 
 def demo_pii_exfiltration():
     print("=== Scenario 2: PII exfiltration blocked (enforce mode) ===")
-    guard = AgentAuditGuard(policy=RULES, agent_name="risky-agent", mode="enforce")
+    guard = TroyGuard(policy=RULES, agent_name="risky-agent", mode="enforce")
 
     d1 = guard.check("read_customer_pii", metadata={"data_classification": "pii"})
     print_decision("read_customer_pii", d1)
@@ -75,7 +75,7 @@ def demo_monitor_mode():
     print("=== Scenario 3: Monitor mode (alert but allow) ===")
     alerts: list[Decision] = []
 
-    guard = AgentAuditGuard(
+    guard = TroyGuard(
         policy=RULES,
         agent_name="monitored-agent",
         mode="monitor",
@@ -96,7 +96,7 @@ def demo_monitor_mode():
 
 
 if __name__ == "__main__":
-    print("AgentAuditGuard — Real-Time Interception Demo")
+    print("TroyGuard — Real-Time Interception Demo")
     print("=" * 50)
     demo_safe_workflow()
     demo_pii_exfiltration()

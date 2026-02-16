@@ -1,4 +1,4 @@
-"""Tests for the `agent-audit check` CLI command."""
+"""Tests for the `troy check` CLI command."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from agent_audit.cli import main
+from troy.cli import main
 
 POLICY_FILE = Path(__file__).parent.parent / "examples" / "policy.json"
 

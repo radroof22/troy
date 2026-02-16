@@ -1,4 +1,4 @@
-"""OpenAI Agents SDK hooks adapter for AgentAuditGuard."""
+"""OpenAI Agents SDK hooks adapter for TroyGuard."""
 
 from __future__ import annotations
 
@@ -10,17 +10,17 @@ try:
 except ImportError:
     raise ImportError(
         "Install openai-agents to use the OpenAI Agents adapter: "
-        "pip install 'agent-audit[openai-agents]'"
+        "pip install 'troy[openai-agents]'"
     )
 
-from agent_audit.guard.core import AgentAuditGuard
-from agent_audit.guard.decision import Decision
-from agent_audit.models import StepType
-from agent_audit.policy.engine import PolicyRule
+from troy.guard.core import TroyGuard
+from troy.guard.decision import Decision
+from troy.models import StepType
+from troy.policy.engine import PolicyRule
 
 
-class AuditHooks(AgentHooks):
-    """OpenAI Agents SDK hooks that intercept tool and LLM calls via AgentAuditGuard."""
+class TroyHooks(AgentHooks):
+    """OpenAI Agents SDK hooks that intercept tool and LLM calls via TroyGuard."""
 
     def __init__(
         self,
@@ -30,7 +30,7 @@ class AuditHooks(AgentHooks):
         on_violation: Callable[[Decision], None] | None = None,
         agent_metadata: dict[str, Any] | None = None,
     ) -> None:
-        self._guard = AgentAuditGuard(
+        self._guard = TroyGuard(
             policy=policy,
             agent_name=agent_name,
             mode=mode,
@@ -40,7 +40,7 @@ class AuditHooks(AgentHooks):
         self._tool_step_ids: dict[str, str] = {}
 
     @property
-    def guard(self) -> AgentAuditGuard:
+    def guard(self) -> TroyGuard:
         return self._guard
 
     async def on_tool_start(self, context: Any, agent: Any, tool: Any) -> None:

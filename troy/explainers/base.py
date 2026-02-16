@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from agent_audit.models import Step, StepExplanation, Trace, TraceSummary
+from troy.models import Step, StepExplanation, Trace, TraceSummary
 
 
 class BaseExplainer(ABC):

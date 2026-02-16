@@ -8,7 +8,7 @@ from pathlib import Path
 
 import click
 
-from agent_audit.models import AuditResult, StepExplanation, Violation
+from troy.models import AuditResult, StepExplanation, Violation
 
 
 class ReplaySession:
@@ -135,7 +135,7 @@ class ReplayRenderer:
 
         lines = [
             click.style("=" * 60, fg="bright_black"),
-            click.style("  AGENT AUDIT REPLAY", fg="cyan", bold=True),
+            click.style("  TROY REPLAY", fg="cyan", bold=True),
             click.style("=" * 60, fg="bright_black"),
             f"  Agent: {click.style(r.trace.agent_name, bold=True)}    Trace: {r.trace.trace_id}",
             f"  Risk Score: {risk_str}    Steps: {s.total_steps}    Violations: {viol_str}",

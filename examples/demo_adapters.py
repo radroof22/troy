@@ -1,11 +1,11 @@
-"""Demo: Framework adapter integration patterns for agent-audit.
+"""Demo: Framework adapter integration patterns for troy.
 
 These examples show the 2-3 line integration API. They won't run
 without the frameworks installed — see tests/test_adapters.py for
 runnable tests that mock the framework imports.
 """
 
-from agent_audit.policy.engine import PolicyRule
+from troy.policy.engine import PolicyRule
 
 # Shared policy for all examples
 POLICY = [
@@ -23,9 +23,9 @@ def langchain_example():
     print("=== LangChain Integration ===")
     print(
         """
-    from agent_audit.adapters.langchain import AuditHandler
+    from troy.adapters.langchain import TroyHandler
 
-    handler = AuditHandler(policy="policy.json")
+    handler = TroyHandler(policy="policy.json")
     agent.invoke(input, config={"callbacks": [handler]})
 
     # Access the guard for trace/violations:
@@ -39,9 +39,9 @@ def openai_agents_example():
     print("=== OpenAI Agents SDK Integration ===")
     print(
         """
-    from agent_audit.adapters.openai_agents import AuditHooks
+    from troy.adapters.openai_agents import TroyHooks
 
-    hooks = AuditHooks(policy="policy.json")
+    hooks = TroyHooks(policy="policy.json")
     agent = Agent(name="bot", hooks=hooks)
 
     # Access the guard:
@@ -55,12 +55,12 @@ def crewai_example():
     print("=== CrewAI Integration ===")
     print(
         """
-    from agent_audit.adapters.crewai import enable_audit, disable_audit
+    from troy.adapters.crewai import enable_troy, disable_troy
 
-    guard = enable_audit(policy="policy.json")
+    guard = enable_troy(policy="policy.json")
     # ... run your crew ...
     trace = guard.get_trace()
-    disable_audit()  # cleanup
+    disable_troy()  # cleanup
     """
     )
 

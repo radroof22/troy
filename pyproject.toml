@@ -1,5 +1,5 @@
 [project]
-name = "agent-audit"
+name = "troy"
 version = "0.1.0"
 description = "Audit agent execution traces against configurable policies — CLI, real-time guard SDK, and framework adapters"
 readme = "README.md"
@@ -28,19 +28,19 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/sentosa-ai/agent-audit"
-Repository = "https://github.com/sentosa-ai/agent-audit"
-Issues = "https://github.com/sentosa-ai/agent-audit/issues"
+Homepage = "https://github.com/sentosa-ai/troy"
+Repository = "https://github.com/sentosa-ai/troy"
+Issues = "https://github.com/sentosa-ai/troy/issues"
 
 [project.scripts]
-agent-audit = "agent_audit.cli:main"
+troy = "troy.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["agent_audit"]
+packages = ["troy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

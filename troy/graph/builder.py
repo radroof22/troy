@@ -2,7 +2,7 @@
 
 import networkx as nx
 
-from agent_audit.models import Trace
+from troy.models import Trace
 
 
 def build_execution_graph(trace: Trace) -> nx.DiGraph:

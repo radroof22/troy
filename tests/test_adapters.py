@@ -11,9 +11,9 @@ from uuid import uuid4
 
 import pytest
 
-from agent_audit.guard.core import AgentAuditGuard
-from agent_audit.models import StepType
-from agent_audit.policy.engine import PolicyRule
+from troy.guard.core import TroyGuard
+from troy.models import StepType
+from troy.policy.engine import PolicyRule
 
 
 # ---------------------------------------------------------------------------
@@ -68,30 +68,30 @@ def _mock_langchain(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setitem(sys.modules, "langchain_core.outputs", outputs_mod)
 
     # Force re-import so the adapter picks up the fakes
-    sys.modules.pop("agent_audit.adapters.langchain", None)
-    from agent_audit.adapters.langchain import AuditHandler
-    yield AuditHandler
+    sys.modules.pop("troy.adapters.langchain", None)
+    from troy.adapters.langchain import TroyHandler
+    yield TroyHandler
 
 
 class TestLangChainAdapter:
     @pytest.fixture(autouse=True)
     def _setup(self, _mock_langchain):
-        self.AuditHandler = _mock_langchain
+        self.TroyHandler = _mock_langchain
 
     def test_on_tool_start_allowed(self):
-        handler = self.AuditHandler(policy=_allow_all_rules())
+        handler = self.TroyHandler(policy=_allow_all_rules())
         run_id = uuid4()
         handler.on_tool_start({"name": "search"}, "query", run_id=run_id)
         assert run_id in handler._run_to_step
 
     def test_on_tool_start_blocked_enforce(self):
-        handler = self.AuditHandler(policy=_block_all_rule(), mode="enforce")
+        handler = self.TroyHandler(policy=_block_all_rule(), mode="enforce")
         with pytest.raises(PermissionError, match="Blocked by policy"):
             handler.on_tool_start({"name": "search"}, "query", run_id=uuid4())
 
     def test_on_tool_start_allowed_monitor(self):
         violations_seen = []
-        handler = self.AuditHandler(
+        handler = self.TroyHandler(
             policy=_block_all_rule(),
             mode="monitor",
             on_violation=lambda d: violations_seen.append(d),
@@ -101,7 +101,7 @@ class TestLangChainAdapter:
         assert len(violations_seen) == 1
 
     def test_on_tool_end_records_output(self):
-        handler = self.AuditHandler(policy=_allow_all_rules())
+        handler = self.TroyHandler(policy=_allow_all_rules())
         run_id = uuid4()
         handler.on_tool_start({"name": "search"}, "query", run_id=run_id)
         handler.on_tool_end("result text", run_id=run_id)
@@ -110,7 +110,7 @@ class TestLangChainAdapter:
         assert step.output == {"result": "result text"}
 
     def test_on_llm_start_and_end(self):
-        handler = self.AuditHandler(policy=_allow_all_rules())
+        handler = self.TroyHandler(policy=_allow_all_rules())
         run_id = uuid4()
         handler.on_llm_start({"name": "gpt-4"}, ["Hello"], run_id=run_id)
         assert run_id in handler._run_to_step
@@ -124,7 +124,7 @@ class TestLangChainAdapter:
         assert step.output == {"result": "Hi there"}
 
     def test_run_id_correlation(self):
-        handler = self.AuditHandler(policy=_allow_all_rules())
+        handler = self.TroyHandler(policy=_allow_all_rules())
         run1 = uuid4()
         run2 = uuid4()
         handler.on_tool_start({"name": "tool_a"}, "input_a", run_id=run1)
@@ -135,11 +135,11 @@ class TestLangChainAdapter:
         assert handler.guard._steps[1].output == {"result": "output_b"}
 
     def test_guard_property(self):
-        handler = self.AuditHandler(policy=_allow_all_rules())
-        assert isinstance(handler.guard, AgentAuditGuard)
+        handler = self.TroyHandler(policy=_allow_all_rules())
+        assert isinstance(handler.guard, TroyGuard)
 
     def test_on_tool_error_records(self):
-        handler = self.AuditHandler(policy=_allow_all_rules())
+        handler = self.TroyHandler(policy=_allow_all_rules())
         run_id = uuid4()
         handler.on_tool_start({"name": "flaky"}, "x", run_id=run_id)
         handler.on_tool_error(RuntimeError("boom"), run_id=run_id)
@@ -148,11 +148,11 @@ class TestLangChainAdapter:
     def test_import_error_message(self, monkeypatch):
         # Remove the fake langchain_core so the real ImportError fires
         for key in list(sys.modules):
-            if key.startswith("langchain_core") or key == "agent_audit.adapters.langchain":
+            if key.startswith("langchain_core") or key == "troy.adapters.langchain":
                 monkeypatch.delitem(sys.modules, key, raising=False)
         with pytest.raises(ImportError, match="Install langchain-core"):
             import importlib
-            importlib.import_module("agent_audit.adapters.langchain")
+            importlib.import_module("troy.adapters.langchain")
 
 
 # ---------------------------------------------------------------------------
@@ -170,35 +170,35 @@ def _mock_openai_agents(monkeypatch: pytest.MonkeyPatch):
     agents_mod.AgentHooks = _FakeAgentHooks
     monkeypatch.setitem(sys.modules, "agents", agents_mod)
 
-    sys.modules.pop("agent_audit.adapters.openai_agents", None)
-    from agent_audit.adapters.openai_agents import AuditHooks
-    yield AuditHooks
+    sys.modules.pop("troy.adapters.openai_agents", None)
+    from troy.adapters.openai_agents import TroyHooks
+    yield TroyHooks
 
 
 class TestOpenAIAgentsAdapter:
     @pytest.fixture(autouse=True)
     def _setup(self, _mock_openai_agents):
-        self.AuditHooks = _mock_openai_agents
+        self.TroyHooks = _mock_openai_agents
 
     def _run(self, coro):
         return asyncio.get_event_loop().run_until_complete(coro)
 
     def test_on_tool_start_allowed(self):
-        hooks = self.AuditHooks(policy=_allow_all_rules())
+        hooks = self.TroyHooks(policy=_allow_all_rules())
         tool = MagicMock()
         tool.name = "search"
         self._run(hooks.on_tool_start(MagicMock(), MagicMock(), tool))
         assert "search" in hooks._tool_step_ids
 
     def test_on_tool_start_blocked(self):
-        hooks = self.AuditHooks(policy=_block_all_rule(), mode="enforce")
+        hooks = self.TroyHooks(policy=_block_all_rule(), mode="enforce")
         tool = MagicMock()
         tool.name = "search"
         with pytest.raises(PermissionError, match="Blocked by policy"):
             self._run(hooks.on_tool_start(MagicMock(), MagicMock(), tool))
 
     def test_on_tool_end_records(self):
-        hooks = self.AuditHooks(policy=_allow_all_rules())
+        hooks = self.TroyHooks(policy=_allow_all_rules())
         tool = MagicMock()
         tool.name = "search"
         self._run(hooks.on_tool_start(MagicMock(), MagicMock(), tool))
@@ -206,7 +206,7 @@ class TestOpenAIAgentsAdapter:
         assert hooks.guard._steps[0].output == {"result": "result"}
 
     def test_on_llm_start_and_end(self):
-        hooks = self.AuditHooks(policy=_allow_all_rules())
+        hooks = self.TroyHooks(policy=_allow_all_rules())
         agent = MagicMock()
         agent.name = "my-agent"
         self._run(hooks.on_llm_start(MagicMock(), agent, "You are helpful", []))
@@ -216,7 +216,7 @@ class TestOpenAIAgentsAdapter:
 
     def test_monitor_mode(self):
         violations_seen = []
-        hooks = self.AuditHooks(
+        hooks = self.TroyHooks(
             policy=_block_all_rule(),
             mode="monitor",
             on_violation=lambda d: violations_seen.append(d),
@@ -228,16 +228,16 @@ class TestOpenAIAgentsAdapter:
         assert len(violations_seen) == 1
 
     def test_guard_property(self):
-        hooks = self.AuditHooks(policy=_allow_all_rules())
-        assert isinstance(hooks.guard, AgentAuditGuard)
+        hooks = self.TroyHooks(policy=_allow_all_rules())
+        assert isinstance(hooks.guard, TroyGuard)
 
     def test_import_error_message(self, monkeypatch):
         for key in list(sys.modules):
-            if key == "agents" or key == "agent_audit.adapters.openai_agents":
+            if key == "agents" or key == "troy.adapters.openai_agents":
                 monkeypatch.delitem(sys.modules, key, raising=False)
         with pytest.raises(ImportError, match="Install openai-agents"):
             import importlib
-            importlib.import_module("agent_audit.adapters.openai_agents")
+            importlib.import_module("troy.adapters.openai_agents")
 
 
 # ---------------------------------------------------------------------------
@@ -261,23 +261,23 @@ def _mock_crewai(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setitem(sys.modules, "crewai", crewai_mod)
     monkeypatch.setitem(sys.modules, "crewai.hooks", hooks_mod)
 
-    sys.modules.pop("agent_audit.adapters.crewai", None)
-    from agent_audit.adapters.crewai import enable_audit, disable_audit
-    yield enable_audit, disable_audit, _registered_before, _registered_after
+    sys.modules.pop("troy.adapters.crewai", None)
+    from troy.adapters.crewai import enable_troy, disable_troy
+    yield enable_troy, disable_troy, _registered_before, _registered_after
 
 
 class TestCrewAIAdapter:
     @pytest.fixture(autouse=True)
     def _setup(self, _mock_crewai):
-        self.enable_audit, self.disable_audit, self._before, self._after = _mock_crewai
+        self.enable_troy, self.disable_troy, self._before, self._after = _mock_crewai
 
-    def test_enable_audit_registers_hooks(self):
-        self.enable_audit(policy=_allow_all_rules())
+    def test_enable_troy_registers_hooks(self):
+        self.enable_troy(policy=_allow_all_rules())
         assert len(self._before) == 1
         assert len(self._after) == 1
 
     def test_before_hook_allows(self):
-        self.enable_audit(policy=_allow_all_rules())
+        self.enable_troy(policy=_allow_all_rules())
         ctx = MagicMock()
         ctx.tool_name = "safe_tool"
         ctx.tool_input = {"x": 1}
@@ -285,7 +285,7 @@ class TestCrewAIAdapter:
         assert result is None  # None = allow
 
     def test_before_hook_blocks(self):
-        self.enable_audit(policy=_block_all_rule(), mode="enforce")
+        self.enable_troy(policy=_block_all_rule(), mode="enforce")
         ctx = MagicMock()
         ctx.tool_name = "dangerous_tool"
         ctx.tool_input = {}
@@ -293,7 +293,7 @@ class TestCrewAIAdapter:
         assert result is False  # False = block
 
     def test_after_hook_records_output(self):
-        guard = self.enable_audit(policy=_allow_all_rules())
+        guard = self.enable_troy(policy=_allow_all_rules())
         ctx_before = MagicMock()
         ctx_before.tool_name = "search"
         ctx_before.tool_input = {}
@@ -308,7 +308,7 @@ class TestCrewAIAdapter:
 
     def test_monitor_mode_allows(self):
         violations_seen = []
-        self.enable_audit(
+        self.enable_troy(
             policy=_block_all_rule(),
             mode="monitor",
             on_violation=lambda d: violations_seen.append(d),
@@ -320,17 +320,17 @@ class TestCrewAIAdapter:
         assert result is None  # monitor mode allows
         assert len(violations_seen) == 1
 
-    def test_disable_audit(self):
-        self.enable_audit(policy=_allow_all_rules())
+    def test_disable_troy(self):
+        self.enable_troy(policy=_allow_all_rules())
         assert len(self._before) == 1
-        self.disable_audit()
+        self.disable_troy()
         assert len(self._before) == 0
         assert len(self._after) == 0
 
     def test_import_error_message(self, monkeypatch):
         for key in list(sys.modules):
-            if key.startswith("crewai") or key == "agent_audit.adapters.crewai":
+            if key.startswith("crewai") or key == "troy.adapters.crewai":
                 monkeypatch.delitem(sys.modules, key, raising=False)
         with pytest.raises(ImportError, match="Install crewai"):
             import importlib
-            importlib.import_module("agent_audit.adapters.crewai")
+            importlib.import_module("troy.adapters.crewai")

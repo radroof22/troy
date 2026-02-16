@@ -1,4 +1,4 @@
-"""LangChain callback handler adapter for AgentAuditGuard."""
+"""LangChain callback handler adapter for TroyGuard."""
 
 from __future__ import annotations
 
@@ -12,17 +12,17 @@ try:
 except ImportError:
     raise ImportError(
         "Install langchain-core to use the LangChain adapter: "
-        "pip install 'agent-audit[langchain]'"
+        "pip install 'troy[langchain]'"
     )
 
-from agent_audit.guard.core import AgentAuditGuard
-from agent_audit.guard.decision import Decision
-from agent_audit.models import StepType
-from agent_audit.policy.engine import PolicyRule
+from troy.guard.core import TroyGuard
+from troy.guard.decision import Decision
+from troy.models import StepType
+from troy.policy.engine import PolicyRule
 
 
-class AuditHandler(BaseCallbackHandler):
-    """LangChain callback handler that intercepts tool and LLM calls via AgentAuditGuard."""
+class TroyHandler(BaseCallbackHandler):
+    """LangChain callback handler that intercepts tool and LLM calls via TroyGuard."""
 
     def __init__(
         self,
@@ -33,7 +33,7 @@ class AuditHandler(BaseCallbackHandler):
         agent_metadata: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
-        self._guard = AgentAuditGuard(
+        self._guard = TroyGuard(
             policy=policy,
             agent_name=agent_name,
             mode=mode,
@@ -43,7 +43,7 @@ class AuditHandler(BaseCallbackHandler):
         self._run_to_step: dict[UUID, str] = {}
 
     @property
-    def guard(self) -> AgentAuditGuard:
+    def guard(self) -> TroyGuard:
         return self._guard
 
     def on_tool_start(

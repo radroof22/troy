@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agent_audit.models import AuditResult, BatchResult
+from troy.models import AuditResult, BatchResult
 
 
 def generate_markdown_report(result: AuditResult) -> str:

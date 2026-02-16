@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from agent_audit.models import Violation
+from troy.models import Violation
 
 
 class Decision(BaseModel):

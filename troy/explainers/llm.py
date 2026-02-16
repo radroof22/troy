@@ -7,8 +7,8 @@ from openai import AsyncOpenAI, OpenAI
 
 logger = logging.getLogger(__name__)
 
-from agent_audit.explainers.base import BaseExplainer
-from agent_audit.models import Step, StepExplanation, Trace, TraceSummary
+from troy.explainers.base import BaseExplainer
+from troy.models import Step, StepExplanation, Trace, TraceSummary
 
 STEP_PROMPT = """\
 You are an AI auditor. Your job is to explain WHY an agent made a decision, not just what it did. The agent's internal reasoning is not available to you — you must infer intent from the inputs, outputs, and surrounding execution context.

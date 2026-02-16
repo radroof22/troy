@@ -1,4 +1,4 @@
-"""Tests for the `agent-audit policies` CLI subcommands."""
+"""Tests for the `troy policies` CLI subcommands."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from agent_audit.cli import main
+from troy.cli import main
 
 
 @pytest.fixture

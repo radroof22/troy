@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from agent_audit.guard import AgentAuditGuard
-from agent_audit.models import Step, StepType, Trace
-from agent_audit.policy.engine import (
+from troy.guard import TroyGuard
+from troy.models import Step, StepType, Trace
+from troy.policy.engine import (
     PolicyRule,
     _make_step_dict,
     compute_risk_score,
@@ -48,7 +48,7 @@ def replay_through_guard(
     mode: str = "enforce",
 ) -> list[dict]:
     """Replay a trace step-by-step through the guard, returning per-step results."""
-    guard = AgentAuditGuard(
+    guard = TroyGuard(
         policy=rules,
         agent_name=trace.agent_name,
         mode=mode,
@@ -294,7 +294,7 @@ class TestFullPolicyReplay:
         guard_violations = []
         for r in guard_results:
             for rid in r["violation_rule_ids"]:
-                from agent_audit.models import Violation
+                from troy.models import Violation
                 guard_violations.append(Violation(
                     rule_id=rid, rule_description="", step_id=r["original_step_id"],
                 ))
@@ -315,7 +315,7 @@ class TestAdversarialScenarios:
 
     def test_interleaved_safe_steps(self):
         """PII → safe → safe → safe → external send: guard still catches it."""
-        guard = AgentAuditGuard(policy=[PII_RULE_REALTIME], mode="enforce")
+        guard = TroyGuard(policy=[PII_RULE_REALTIME], mode="enforce")
 
         d1 = guard.check("read_pii", metadata={"data_classification": "pii"})
         assert d1.allowed is True
@@ -332,7 +332,7 @@ class TestAdversarialScenarios:
 
     def test_reset_clears_history(self):
         """After reset(), prior PII access is forgotten — send should be allowed."""
-        guard = AgentAuditGuard(policy=[PII_RULE_REALTIME], mode="enforce")
+        guard = TroyGuard(policy=[PII_RULE_REALTIME], mode="enforce")
 
         guard.check("read_pii", metadata={"data_classification": "pii"})
         guard.reset()
@@ -342,7 +342,7 @@ class TestAdversarialScenarios:
 
     def test_reset_then_replay_catches_again(self):
         """After reset, a new PII→send sequence is still caught."""
-        guard = AgentAuditGuard(policy=[PII_RULE_REALTIME], mode="enforce")
+        guard = TroyGuard(policy=[PII_RULE_REALTIME], mode="enforce")
 
         guard.check("read_pii", metadata={"data_classification": "pii"})
         guard.reset()
@@ -354,7 +354,7 @@ class TestAdversarialScenarios:
 
     def test_multiple_pii_sources(self):
         """Multiple PII steps before send — still caught, only one violation."""
-        guard = AgentAuditGuard(policy=[PII_RULE_REALTIME], mode="enforce")
+        guard = TroyGuard(policy=[PII_RULE_REALTIME], mode="enforce")
 
         guard.check("read_pii_1", metadata={"data_classification": "pii"})
         guard.check("read_pii_2", metadata={"data_classification": "pii"})
@@ -364,7 +364,7 @@ class TestAdversarialScenarios:
 
     def test_send_before_pii_is_safe(self):
         """External send BEFORE PII access — no violation."""
-        guard = AgentAuditGuard(policy=[PII_RULE_REALTIME], mode="enforce")
+        guard = TroyGuard(policy=[PII_RULE_REALTIME], mode="enforce")
 
         d1 = guard.check("send_external", metadata={"network_zone": "external"})
         assert d1.allowed is True  # no prior PII
@@ -375,7 +375,7 @@ class TestAdversarialScenarios:
     def test_monitor_mode_sees_all_violations(self):
         """Monitor mode allows everything but collects all violations."""
         alerts = []
-        guard = AgentAuditGuard(
+        guard = TroyGuard(
             policy=[PII_RULE_REALTIME],
             mode="monitor",
             on_violation=lambda d: alerts.append(d),
@@ -391,7 +391,7 @@ class TestAdversarialScenarios:
         """A blocked step is still recorded, so rules referencing it work."""
         # Rule: block if any previous step was blocked (meta.blocked=True)
         # We simulate this by checking that the step dict is in history
-        guard = AgentAuditGuard(policy=[PII_RULE_REALTIME], mode="enforce")
+        guard = TroyGuard(policy=[PII_RULE_REALTIME], mode="enforce")
 
         guard.check("read_pii", metadata={"data_classification": "pii"})
         d_blocked = guard.check("send_external", metadata={"network_zone": "external"})
@@ -424,7 +424,7 @@ class TestTraceAccumulationFidelity:
             if "any_next" not in r.condition
         ]
 
-        guard = AgentAuditGuard(
+        guard = TroyGuard(
             policy=single_step_rules,
             agent_name=original.agent_name,
             mode="monitor",  # allow all so we get the full trace

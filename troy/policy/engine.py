@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from agent_audit.models import Step, Trace, Violation
+from troy.models import Step, Trace, Violation
 
 
 class PolicyRule:

@@ -1,4 +1,4 @@
-"""AgentAuditGuard — real-time interception for agent tool calls."""
+"""TroyGuard — real-time interception for agent tool calls."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable
 
-from agent_audit.guard.decision import Decision
-from agent_audit.models import Step, StepType, Trace, Violation
-from agent_audit.policy.engine import (
+from troy.guard.decision import Decision
+from troy.models import Step, StepType, Trace, Violation
+from troy.policy.engine import (
     PolicyRule,
     _make_step_dict,
     compute_risk_score,
@@ -20,7 +20,7 @@ from agent_audit.policy.engine import (
 VALID_MODES = ("enforce", "monitor", "dry-run")
 
 
-class AgentAuditGuard:
+class TroyGuard:
     """Real-time guard that evaluates policy rules before tool calls execute.
 
     Modes:
@@ -146,11 +146,11 @@ class AgentAuditGuard:
         self._violations.clear()
 
 
-def audited(guard: AgentAuditGuard):
+def guarded(guard: TroyGuard):
     """Decorator that wraps a function with guard check → execute → record_output.
 
     Usage:
-        @audited(guard)
+        @guarded(guard)
         def send_email(to, body):
             ...
 

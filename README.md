@@ -1,4 +1,4 @@
-# agent-audit
+# troy
 
 Audit agent execution traces against configurable policies. Post-hoc auditing with LLM explanations, real-time interception via the guard SDK, and framework adapters for LangChain, OpenAI Agents, and CrewAI.
 
@@ -7,22 +7,22 @@ Audit agent execution traces against configurable policies. Post-hoc auditing wi
 Requires Python 3.11+.
 
 ```bash
-pip install agent-audit
+pip install troy
 ```
 
 With framework adapters:
 
 ```bash
-pip install agent-audit[langchain]    # LangChain callback handler
-pip install agent-audit[openai-agents] # OpenAI Agents SDK hooks
-pip install agent-audit[crewai]        # CrewAI global hooks
+pip install troy[langchain]    # LangChain callback handler
+pip install troy[openai-agents] # OpenAI Agents SDK hooks
+pip install troy[crewai]        # CrewAI global hooks
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/sentosa-ai/agent-audit.git
-cd agent-audit
+git clone https://github.com/sentosa-ai/troy.git
+cd troy
 uv sync
 ```
 
@@ -39,19 +39,19 @@ Or pass them as flags / environment variables (see [Configuration](#configuratio
 
 ```bash
 # Audit a single trace
-uv run agent-audit audit traces/agent_run.json examples/policy.json
+uv run troy audit traces/agent_run.json examples/policy.json
 
 # Batch audit every trace in a directory
-uv run agent-audit audit-batch traces/ examples/policy.json
+uv run troy audit-batch traces/ examples/policy.json
 
 # Replay a previous audit interactively
-uv run agent-audit replay logs/2026-02-15/trace3/audit.json
+uv run troy replay logs/2026-02-15/trace3/audit.json
 
 # Replay with a different policy (no LLM calls, instant)
-uv run agent-audit replay logs/2026-02-15/trace3/audit.json --policy examples/policy.json
+uv run troy replay logs/2026-02-15/trace3/audit.json --policy examples/policy.json
 
 # Dump replay to stdout for piping / CI
-uv run agent-audit replay logs/2026-02-15/trace3/audit.json --policy examples/policy.json --no-interactive
+uv run troy replay logs/2026-02-15/trace3/audit.json --policy examples/policy.json --no-interactive
 ```
 
 ## Commands
@@ -61,14 +61,14 @@ uv run agent-audit replay logs/2026-02-15/trace3/audit.json --policy examples/po
 Runs the full pipeline: graph building, LLM explanation, policy evaluation, scoring, and reporting.
 
 ```bash
-uv run agent-audit audit <trace_file> <policy_file> [OPTIONS]
+uv run troy audit <trace_file> <policy_file> [OPTIONS]
 ```
 
 | Option | Env var | Default | Description |
 |---|---|---|---|
 | `--output`, `-o` | — | `logs/{date}/report.md` | Markdown report output path |
 | `--json-output`, `-j` | — | `logs/{date}/audit.json` | JSON report output path |
-| `--model`, `-m` | `AGENT_AUDIT_MODEL` | `gpt-4o-mini` | LLM model name |
+| `--model`, `-m` | `TROY_MODEL` | `gpt-4o-mini` | LLM model name |
 | `--base-url` | `OPENAI_BASE_URL` | — | API base URL |
 | `--api-key` | `OPENAI_API_KEY` | — | API key |
 
@@ -89,7 +89,7 @@ logs/{date}/
 Audits all `.json` trace files in a directory concurrently (up to 5 in parallel).
 
 ```bash
-uv run agent-audit audit-batch <trace_dir> <policy_file> [OPTIONS]
+uv run troy audit-batch <trace_dir> <policy_file> [OPTIONS]
 ```
 
 Same options as `audit` (model, base-url, api-key). Generates per-trace reports plus a batch summary:
@@ -111,7 +111,7 @@ logs/{date}/
 Replays a previously-generated `audit.json` in the terminal. No LLM calls needed.
 
 ```bash
-uv run agent-audit replay <audit_file> [OPTIONS]
+uv run troy replay <audit_file> [OPTIONS]
 ```
 
 | Option | Description |
@@ -136,25 +136,25 @@ uv run agent-audit replay <audit_file> [OPTIONS]
 Evaluate one action against a policy. No LLM needed. Returns JSON. Exit code 0 if allowed, 2 if blocked.
 
 ```bash
-agent-audit check policy.json -a search -i '{"query": "SELECT * FROM users"}'
-agent-audit check policy.json -a send_email --mode monitor
-agent-audit check policy.json -a bash --metadata '{"permission_level": "admin"}'
+troy check policy.json -a search -i '{"query": "SELECT * FROM users"}'
+troy check policy.json -a send_email --mode monitor
+troy check policy.json -a bash --metadata '{"permission_level": "admin"}'
 ```
 
 ### `policies` — Browse and use policy templates
 
 ```bash
 # List all bundled policy templates
-agent-audit policies list
+troy policies list
 
 # Show rules in a specific policy
-agent-audit policies show soc2
+troy policies show soc2
 
 # Copy a template to your project
-agent-audit policies copy hipaa -o my_policy.json
+troy policies copy hipaa -o my_policy.json
 
 # Combine multiple templates into one policy
-agent-audit policies init -t soc2 -t hipaa -o policy.json
+troy policies init -t soc2 -t hipaa -o policy.json
 ```
 
 Available templates: `minimal`, `agent_safety`, `owasp_llm_top10`, `data_protection`, `safe_browsing`, `soc2`, `hipaa`.
@@ -170,7 +170,7 @@ Available templates: `minimal`, `agent_safety`, `owasp_llm_top10`, `data_protect
 
 ## Trace Format
 
-agent-audit consumes traces — it doesn't generate them. Your agent logging system needs to produce JSON in this format:
+troy consumes traces — it doesn't generate them. Your agent logging system needs to produce JSON in this format:
 
 ```json
 {
@@ -308,7 +308,7 @@ Malformed or erroring conditions are silently skipped — they won't crash the e
 LLM settings can be configured three ways (in order of precedence):
 
 1. **CLI flags:** `--model`, `--base-url`, `--api-key`
-2. **Environment variables:** `AGENT_AUDIT_MODEL`, `OPENAI_BASE_URL`, `OPENAI_API_KEY`
+2. **Environment variables:** `TROY_MODEL`, `OPENAI_BASE_URL`, `OPENAI_API_KEY`
 3. **`.env` file** (loaded automatically via python-dotenv)
 
 The tool uses the OpenAI client library, so it works with any OpenAI-compatible API (OpenAI, Azure, local models via LiteLLM/Ollama, etc).

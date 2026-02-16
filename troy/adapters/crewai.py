@@ -1,4 +1,4 @@
-"""CrewAI adapter for AgentAuditGuard — global hook-based integration."""
+"""CrewAI adapter for TroyGuard — global hook-based integration."""
 
 from __future__ import annotations
 
@@ -15,32 +15,32 @@ try:
 except ImportError:
     raise ImportError(
         "Install crewai to use the CrewAI adapter: "
-        "pip install 'agent-audit[crewai]'"
+        "pip install 'troy[crewai]'"
     )
 
-from agent_audit.guard.core import AgentAuditGuard
-from agent_audit.guard.decision import Decision
-from agent_audit.models import StepType
-from agent_audit.policy.engine import PolicyRule
+from troy.guard.core import TroyGuard
+from troy.guard.decision import Decision
+from troy.models import StepType
+from troy.policy.engine import PolicyRule
 
 # Module-level state for hook registration/cleanup
 _before_hook: Callable | None = None
 _after_hook: Callable | None = None
-_guard: AgentAuditGuard | None = None
+_guard: TroyGuard | None = None
 _step_ids: dict[str, str] = {}
 
 
-def enable_audit(
+def enable_troy(
     policy: str | Path | list[PolicyRule],
     mode: str = "enforce",
     agent_name: str = "crewai-agent",
     on_violation: Callable[[Decision], None] | None = None,
     agent_metadata: dict[str, Any] | None = None,
-) -> AgentAuditGuard:
+) -> TroyGuard:
     """Enable audit hooks for CrewAI tool calls. Returns the guard instance."""
     global _before_hook, _after_hook, _guard, _step_ids
 
-    _guard = AgentAuditGuard(
+    _guard = TroyGuard(
         policy=policy,
         agent_name=agent_name,
         mode=mode,
@@ -82,7 +82,7 @@ def enable_audit(
     return _guard
 
 
-def disable_audit() -> None:
+def disable_troy() -> None:
     """Unregister audit hooks from CrewAI."""
     global _before_hook, _after_hook, _guard, _step_ids
 

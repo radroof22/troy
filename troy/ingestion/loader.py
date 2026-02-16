@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from agent_audit.models import Trace
+from troy.models import Trace
 
 
 def load_trace(path: Path) -> Trace:

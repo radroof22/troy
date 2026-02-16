@@ -1,4 +1,4 @@
-"""CLI entry point for agent-audit."""
+"""CLI entry point for troy."""
 
 import asyncio
 import logging
@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-from agent_audit.explainers.llm import LLMExplainer
-from agent_audit.graph.builder import build_execution_graph
-from agent_audit.ingestion.loader import load_trace
-from agent_audit.models import AuditResult, BatchResult, Trace
-from agent_audit.policy.engine import PolicyRule, compute_risk_score, evaluate_policy, load_policy
-from agent_audit.reporting.reporter import (
+from troy.explainers.llm import LLMExplainer
+from troy.graph.builder import build_execution_graph
+from troy.ingestion.loader import load_trace
+from troy.models import AuditResult, BatchResult, Trace
+from troy.policy.engine import PolicyRule, compute_risk_score, evaluate_policy, load_policy
+from troy.reporting.reporter import (
     generate_batch_json,
     generate_batch_summary,
     generate_json_report,
@@ -83,7 +83,7 @@ def _run_audit(trace: Trace, rules: list[PolicyRule], explainer: LLMExplainer | 
 
 @click.group()
 def main():
-    """Agent Audit — analyze agent execution traces against policies."""
+    """Troy — analyze agent execution traces against policies."""
 
 
 @main.command()
@@ -91,7 +91,7 @@ def main():
 @click.argument("policy_file", type=click.Path(exists=True, path_type=Path))
 @click.option("--output", "-o", type=click.Path(path_type=Path), default=None, help="Output markdown report path.")
 @click.option("--json-output", "-j", type=click.Path(path_type=Path), default=None, help="Output JSON report path.")
-@click.option("--model", "-m", envvar="AGENT_AUDIT_MODEL", default="gpt-4o-mini", help="Model name (or set AGENT_AUDIT_MODEL).")
+@click.option("--model", "-m", envvar="TROY_MODEL", default="gpt-4o-mini", help="Model name (or set TROY_MODEL).")
 @click.option("--base-url", envvar="OPENAI_BASE_URL", default=None, help="API base URL (or set OPENAI_BASE_URL).")
 @click.option("--api-key", envvar="OPENAI_API_KEY", default=None, help="API key (or set OPENAI_API_KEY).")
 @click.option("--no-explain", is_flag=True, default=False, help="Skip LLM explanations (policy evaluation and scoring only, no API key needed).")
@@ -248,7 +248,7 @@ async def _run_batch(
 @main.command("audit-batch")
 @click.argument("trace_dir", type=click.Path(exists=True, file_okay=False, path_type=Path))
 @click.argument("policy_file", type=click.Path(exists=True, path_type=Path))
-@click.option("--model", "-m", envvar="AGENT_AUDIT_MODEL", default="gpt-4o-mini", help="Model name (or set AGENT_AUDIT_MODEL).")
+@click.option("--model", "-m", envvar="TROY_MODEL", default="gpt-4o-mini", help="Model name (or set TROY_MODEL).")
 @click.option("--base-url", envvar="OPENAI_BASE_URL", default=None, help="API base URL (or set OPENAI_BASE_URL).")
 @click.option("--api-key", envvar="OPENAI_API_KEY", default=None, help="API key (or set OPENAI_API_KEY).")
 @click.option("--no-explain", is_flag=True, default=False, help="Skip LLM explanations (policy evaluation and scoring only, no API key needed).")
@@ -263,7 +263,7 @@ def audit_batch(trace_dir: Path, policy_file: Path, model: str, base_url: str | 
 @click.option("--no-interactive", is_flag=True, default=False, help="Dump full replay to stdout (pipeable).")
 def replay(audit_file: Path, policy: Path | None, no_interactive: bool):
     """Interactively replay a previously-generated audit."""
-    from agent_audit.replay.viewer import ReplayRenderer, ReplaySession, run_interactive
+    from troy.replay.viewer import ReplayRenderer, ReplaySession, run_interactive
 
     click.echo(f"Loading audit from {audit_file}...")
     result = AuditResult.model_validate_json(audit_file.read_text())
@@ -313,14 +313,14 @@ def check(
 
     \b
     Examples:
-        agent-audit check policy.json -a search -i '{"query": "SELECT * FROM users"}'
-        agent-audit check policy.json -a send_email --mode monitor
-        agent-audit check policy.json -a bash --metadata '{"permission_level": "admin"}'
+        troy check policy.json -a search -i '{"query": "SELECT * FROM users"}'
+        troy check policy.json -a send_email --mode monitor
+        troy check policy.json -a bash --metadata '{"permission_level": "admin"}'
     """
     import json as json_mod
 
-    from agent_audit.guard.core import AgentAuditGuard
-    from agent_audit.models import StepType
+    from troy.guard.core import TroyGuard
+    from troy.models import StepType
 
     input_data = None
     if input_json:
@@ -343,7 +343,7 @@ def check(
         except json_mod.JSONDecodeError as e:
             raise click.BadParameter(f"Invalid JSON for --agent-metadata: {e}") from e
 
-    guard = AgentAuditGuard(
+    guard = TroyGuard(
         policy=policy_file,
         agent_name=agent_name,
         mode=mode,
@@ -394,7 +394,7 @@ def policies_list():
 
     \b
     Example:
-        agent-audit policies list
+        troy policies list
     """
     import json as json_mod
 
@@ -425,7 +425,7 @@ def policies_show(name: str):
 
     \b
     Example:
-        agent-audit policies show soc2
+        troy policies show soc2
     """
     import json as json_mod
 
@@ -439,7 +439,7 @@ def policies_show(name: str):
                 policy_file = f
                 break
         else:
-            click.echo(f"Policy '{name}' not found. Run 'agent-audit policies list' to see available policies.")
+            click.echo(f"Policy '{name}' not found. Run 'troy policies list' to see available policies.")
             raise SystemExit(1)
 
     data = json_mod.loads(policy_file.read_text())
@@ -468,8 +468,8 @@ def policies_copy(name: str, output: Path | None):
 
     \b
     Examples:
-        agent-audit policies copy soc2
-        agent-audit policies copy hipaa -o my_policy.json
+        troy policies copy soc2
+        troy policies copy hipaa -o my_policy.json
     """
     import shutil
 
@@ -483,7 +483,7 @@ def policies_copy(name: str, output: Path | None):
                 policy_file = f
                 break
         else:
-            click.echo(f"Policy '{name}' not found. Run 'agent-audit policies list' to see available policies.")
+            click.echo(f"Policy '{name}' not found. Run 'troy policies list' to see available policies.")
             raise SystemExit(1)
 
     dest = output or Path(f"{name}.json")
@@ -503,9 +503,9 @@ def policies_init(output: Path, template: tuple[str, ...]):
 
     \b
     Examples:
-        agent-audit policies init
-        agent-audit policies init -t soc2 -t hipaa -o enterprise_policy.json
-        agent-audit policies init -t owasp_llm_top10 -t safe_browsing
+        troy policies init
+        troy policies init -t soc2 -t hipaa -o enterprise_policy.json
+        troy policies init -t owasp_llm_top10 -t safe_browsing
     """
     import json as json_mod
 
@@ -519,7 +519,7 @@ def policies_init(output: Path, template: tuple[str, ...]):
     for name in templates:
         policy_file = policies_dir / f"{name}.json"
         if not policy_file.exists():
-            click.echo(f"Policy '{name}' not found. Run 'agent-audit policies list' to see available policies.")
+            click.echo(f"Policy '{name}' not found. Run 'troy policies list' to see available policies.")
             raise SystemExit(1)
         data = json_mod.loads(policy_file.read_text())
         descriptions.append(data.get("description", name))

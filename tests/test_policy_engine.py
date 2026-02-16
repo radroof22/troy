@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from agent_audit.models import Step, StepType, Trace, Violation
-from agent_audit.policy.engine import (
+from troy.models import Step, StepType, Trace, Violation
+from troy.policy.engine import (
     PolicyRule,
     _make_step_dict,
     _matches,
